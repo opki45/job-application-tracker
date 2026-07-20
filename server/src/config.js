@@ -3,7 +3,8 @@ const path = require('path');
 // Jest sets NODE_ENV=test automatically. When it does, load ".env.test" so
 // tests run against a separate database and never touch your real data.
 const envFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env';
-require('dotenv').config({ path: path.resolve(process.cwd(), envFile) });
+// quiet: true stops dotenv printing its "injected env / tip" lines on startup.
+require('dotenv').config({ path: path.resolve(process.cwd(), envFile), quiet: true });
 
 const config = {
   port: process.env.PORT || 3000,
