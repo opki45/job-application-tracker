@@ -1,35 +1,40 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import AuthLayout from '../components/AuthLayout';
 
 function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  // One piece of state per field (controlled inputs), plus UI state for the
-  // error message and whether a request is in flight.
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e) {
-    e.preventDefault();     // stop the browser's default full-page form submit
+    e.preventDefault();
     setError('');
     setSubmitting(true);
     try {
-      await login(email, password); // calls my backend via the auth context
-      navigate('/');                // success -> go to the dashboard
+      await login(email, password);
+      navigate('/');
     } catch (err) {
-      setError(err.message);        // e.g. "Invalid credentials"
+      setError(err.message);
     } finally {
-      setSubmitting(false);         // re-enable the button either way
+      setSubmitting(false);
     }
   }
 
   return (
-    <div>
-      <h1>Log in</h1>
+    <AuthLayout
+      title="Welcome back."
+      subtitle="Log in to pick up your job search right where you left off."
+      navPrompt="New to Landed?"
+      navTo="/register"
+      navLabel="Create account"
+    >
+      <h2 className="form-heading">Log in</h2>
       <form onSubmit={handleSubmit}>
         <label>
           Email
@@ -50,16 +55,13 @@ function Login() {
           />
         </label>
 
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
+        {error && <p className="error">{error}</p>}
 
-        <button type="submit" disabled={submitting}>
+        <button type="submit" className="btn-primary" disabled={submitting}>
           {submitting ? 'Logging in...' : 'Log in'}
         </button>
       </form>
-      <p>
-        No account? <Link to="/register">Register</Link>
-      </p>
-    </div>
+    </AuthLayout>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import AuthLayout from '../components/AuthLayout';
 
 function Register() {
   const { register } = useAuth();
@@ -16,20 +17,24 @@ function Register() {
     setError('');
     setSubmitting(true);
     try {
-      // register() creates the account then logs in, so on success I'm ready
-      // to go straight to the dashboard.
       await register(email, password);
       navigate('/');
     } catch (err) {
-      setError(err.message); // e.g. "Password must be at least 8 characters"
+      setError(err.message);
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div>
-      <h1>Register</h1>
+    <AuthLayout
+      title="Track every application in one place."
+      subtitle="Landed keeps your job hunt organised — applied, interviewing, offers — all in one clean dashboard."
+      navPrompt="Already have an account?"
+      navTo="/login"
+      navLabel="Sign in"
+    >
+      <h2 className="form-heading">Create your account</h2>
       <form onSubmit={handleSubmit}>
         <label>
           Email
@@ -51,16 +56,13 @@ function Register() {
           />
         </label>
 
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
+        {error && <p className="error">{error}</p>}
 
-        <button type="submit" disabled={submitting}>
-          {submitting ? 'Creating account...' : 'Register'}
+        <button type="submit" className="btn-primary" disabled={submitting}>
+          {submitting ? 'Creating account...' : 'Get started free'}
         </button>
       </form>
-      <p>
-        Already have an account? <Link to="/login">Log in</Link>
-      </p>
-    </div>
+    </AuthLayout>
   );
 }
 
