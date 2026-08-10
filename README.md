@@ -57,7 +57,7 @@ client/                     React app (Vite)
     AuthContext.jsx         auth state + token persistence
     ProtectedRoute.jsx      redirects if not logged in
     pages/                  Login, Register, Dashboard
-    components/             Logo, ApplicationItem, AuthLayout, ProductPreview, GmailConnect
+    components/             Logo, ApplicationItem, AuthLayout, ProductPreview, GmailConnect, ReviewQueue
 ```
 
 ## Design decisions (and why)
@@ -122,9 +122,10 @@ Full build spec: [`docs/PHASE2.md`](docs/PHASE2.md). Goal: connect Gmail (read-o
 - Gmail OAuth connect/callback/status/disconnect, tokens encrypted at rest (`GmailConnect` on the dashboard)
 - `POST /api/sync/gmail` — lists recent mail, dedupes against already-seen messages, prefilters for likely-job-related content, extracts structured fields with an LLM, and writes `candidates` for anything job-related. Verified end to end against a real Gmail inbox.
 
+- Review queue (`GET /api/candidates`, accept/dismiss) with an edit-then-approve UI — the accept form is always editable, so a low-confidence extraction (e.g. a missing role) just means filling in a blank field before hitting Accept rather than a separate edit flow. Accepted candidates write to `applications` through the existing model, tagged `source='email'`. Verified end to end: a real incomplete candidate correctly 400'd until edited, a complete one accepted cleanly.
+
 **Not started yet:**
-- Review queue API + UI (accept / dismiss candidates)
-- Reconciliation against existing applications (forward-only status updates)
+- Reconciliation against existing applications (forward-only status updates, matching a candidate to an existing application instead of always creating a new one)
 
 **LLM provider note:** the code supports both `ollama` (local) and `gemini` (cloud) behind one `LLM_PROVIDER` switch, per `docs/PHASE2.md`. In practice, local Ollama inference was too unreliable on this machine to build against (a 3B model timed out / hung mid-generation on a real sync run), so **Gemini (`gemini-flash-latest`, free tier) is the provider actually in use** for now. Ollama's adapter, config, and tests are all still there — flipping `LLM_PROVIDER=ollama` in `.env` switches back with no code changes.
 

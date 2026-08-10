@@ -523,6 +523,54 @@ button:disabled {
   padding: 0.6rem 1.4rem;
 }
 
+/* Gmail review queue */
+.review-queue {
+  margin-bottom: 1.9rem;
+}
+.review-queue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+}
+.review-queue-head h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.candidate-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.candidate-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 0.8rem 1rem;
+}
+.candidate-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+.candidate-form input,
+.candidate-form select {
+  background: #fff;
+}
+.candidate-form input {
+  flex: 1;
+  min-width: 140px;
+}
+.candidate-confidence {
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 /* List header + filter */
 .list-head {
   display: flex;

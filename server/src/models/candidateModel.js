@@ -25,4 +25,41 @@ async function findCandidateById(userId, id) {
   return rows[0] || null;
 }
 
-module.exports = { createCandidate, findCandidateById };
+// The review queue: everything still awaiting a decision. Newest first, same
+// convention as the applications list.
+async function findPendingCandidates(userId) {
+  const [rows] = await pool.execute(
+    `SELECT * FROM candidates WHERE user_id = ? AND state = 'pending' ORDER BY created_at DESC, id DESC`,
+    [userId]
+  );
+  return rows;
+}
+
+// Scoped to state = 'pending' on purpose: accept/dismiss both look a
+// candidate up this way, so a nonexistent id, another user's candidate, AND
+// one that's already been accepted/dismissed all 404 the same way. Once
+// something's been decided, it doesn't resurface -- there's no path back to
+// "pending" through this API.
+async function findPendingCandidateById(userId, id) {
+  const [rows] = await pool.execute(
+    `SELECT * FROM candidates WHERE user_id = ? AND id = ? AND state = 'pending'`,
+    [userId, id]
+  );
+  return rows[0] || null;
+}
+
+async function updateCandidateState(userId, id, state) {
+  await pool.execute('UPDATE candidates SET state = ? WHERE user_id = ? AND id = ?', [
+    state,
+    userId,
+    id,
+  ]);
+}
+
+module.exports = {
+  createCandidate,
+  findCandidateById,
+  findPendingCandidates,
+  findPendingCandidateById,
+  updateCandidateState,
+};

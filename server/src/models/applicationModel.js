@@ -11,8 +11,8 @@ const WRITABLE_COLUMNS = ['company', 'role', 'status', 'date_applied', 'job_desc
 async function createApplication(userId, data) {
   const [result] = await pool.execute(
     `INSERT INTO applications
-       (user_id, company, role, status, date_applied, job_description, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (user_id, company, role, status, date_applied, job_description, notes, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       userId,
       data.company,
@@ -21,6 +21,10 @@ async function createApplication(userId, data) {
       data.date_applied,
       data.job_description ?? null,
       data.notes ?? null,
+      // 'manual' unless the caller says otherwise (candidateController passes
+      // 'email' when an application is created from an accepted candidate).
+      // Matches the schema default, so every existing caller is unaffected.
+      data.source ?? 'manual',
     ]
   );
   // Read the new row back so the client gets the full record (id, timestamps...).

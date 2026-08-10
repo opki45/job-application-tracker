@@ -53,11 +53,13 @@ src/
     applicationController.js # CRUD + filtering
     integrationController.js # Gmail OAuth connect/callback/status/disconnect
     syncController.js        # POST /api/sync/gmail (fetch/prefilter/extract pipeline)
+    candidateController.js   # review queue: list / accept / dismiss
   routes/
     authRoutes.js
     applicationRoutes.js
     integrationRoutes.js
     syncRoutes.js
+    candidateRoutes.js
   integrations/
     googleClient.js          # OAuth boundary (auth URL, code exchange, revoke)
     gmailClient.js            # Gmail API boundary (list/get messages, message bodies)
@@ -75,9 +77,10 @@ tests/
   sync.test.js
   emailPrefilter.test.js
   extractApplication.test.js
+  candidates.test.js
 ```
 
-Phase 2 (Gmail auto-import) is in progress — see [`../docs/PHASE2.md`](../docs/PHASE2.md) for the full design. OAuth connect and the full fetch → prefilter → LLM extract → `candidates` pipeline are built and verified against a real Gmail inbox; the review-queue endpoints and reconciliation are not yet.
+Phase 2 (Gmail auto-import) is in progress — see [`../docs/PHASE2.md`](../docs/PHASE2.md) for the full design. OAuth connect, the full fetch → prefilter → LLM extract → `candidates` pipeline, and the review queue (accept/dismiss) are built and verified end to end against a real Gmail inbox. Reconciliation (matching a candidate to an existing application instead of always creating a new one) is not yet.
 
 ## Getting started
 
@@ -192,6 +195,16 @@ Requesting an application that doesn't exist, or that belongs to another user, r
 
 **LLM provider:** `LLM_PROVIDER=ollama|gemini` in `.env` selects the adapter (see `.env.example`). Ollama is the spec's default (free, local, email never leaves the machine), but proved unreliable in practice on this machine — Gemini (`gemini-flash-latest`, free tier) is what's actually configured and verified end to end. Both are implemented and covered by mocked tests either way.
 
+### Review queue (Phase 2)
+
+| Method | Path                          | Auth | Body                                                | Success                        |
+|--------|-------------------------------|------|------------------------------------------------------|---------------------------------|
+| GET    | `/api/candidates`             | ✅   | –                                                    | `200 { candidates }` (pending only) |
+| POST   | `/api/candidates/:id/accept`  | ✅   | optional `{ company, role, status, date_applied }`  | `201 { application }`           |
+| POST   | `/api/candidates/:id/dismiss` | ✅   | –                                                    | `204`                            |
+
+Accepting writes to `applications` through the same model `/api/applications` uses, tagged `source='email'`, and runs the same validation (company/role required). Any field in the accept body overrides what the LLM extracted -- this is also the whole edit-then-approve flow: a candidate with a low-confidence/null field (e.g. no role) 400s on accept until the client fills it in and resends. Once a candidate is accepted or dismissed it's gone from `GET /api/candidates` for good -- there's no path back to pending.
+
 ### Example
 
 ```bash
@@ -214,7 +227,7 @@ curl -X POST http://localhost:3000/api/applications \
 
 ## Roadmap
 
-- Finish Phase 2 — Gmail auto-import: review-queue endpoints, reconciliation (see [`../docs/PHASE2.md`](../docs/PHASE2.md))
+- Finish Phase 2 — Gmail auto-import: reconciliation (matching a candidate against an existing application instead of always creating a new one; see [`../docs/PHASE2.md`](../docs/PHASE2.md))
 - Pagination on the applications list
 - Rate limiting on login and a CORS/security-header layer
 - Later phase: RAG / evaluation harnesses

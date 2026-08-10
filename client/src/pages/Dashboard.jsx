@@ -4,6 +4,7 @@ import { api } from '../api';
 import Logo from '../components/Logo';
 import ApplicationItem from '../components/ApplicationItem';
 import GmailConnect from '../components/GmailConnect';
+import ReviewQueue from '../components/ReviewQueue';
 
 const STATUSES = ['applied', 'interviewing', 'offer', 'rejected', 'accepted'];
 
@@ -154,6 +155,8 @@ function Dashboard() {
             {formError && <span className="error">{formError}</span>}
           </form>
         </div>
+
+        <ReviewQueue onApplicationCreated={loadApplications} />
 
         {/* List header + filter */}
         <div className="list-head">
