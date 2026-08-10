@@ -51,9 +51,16 @@ async function callback(req, res) {
 
   try {
     const tokens = await google.getTokensFromCode(code);
+    if (!tokens.refresh_token) {
+      // I request prompt=consent specifically so this always comes back on
+      // a full consent flow -- if it's ever missing, upsertTokens' INSERT
+      // would fail the column's NOT NULL constraint anyway, so I fail fast
+      // here with a clearer reason logged.
+      throw new Error('Google did not return a refresh_token on this consent flow');
+    }
     await oauthAccountModel.upsertTokens(userId, PROVIDER, {
       accessToken: tokenCrypto.encrypt(tokens.access_token),
-      refreshToken: tokens.refresh_token ? tokenCrypto.encrypt(tokens.refresh_token) : null,
+      refreshToken: tokenCrypto.encrypt(tokens.refresh_token),
       expiresAt: new Date(tokens.expiry_date),
     });
     return res.redirect(`${config.clientUrl}/?gmail=connected`);
