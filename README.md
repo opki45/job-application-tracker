@@ -120,12 +120,13 @@ Full build spec: [`docs/PHASE2.md`](docs/PHASE2.md). Goal: connect Gmail (read-o
 
 **Done:**
 - Gmail OAuth connect/callback/status/disconnect, tokens encrypted at rest (`GmailConnect` on the dashboard)
-- `POST /api/sync/gmail` — lists recent mail, dedupes against already-seen messages, prefilters for likely-job-related content
+- `POST /api/sync/gmail` — lists recent mail, dedupes against already-seen messages, prefilters for likely-job-related content, extracts structured fields with an LLM, and writes `candidates` for anything job-related. Verified end to end against a real Gmail inbox.
 
 **Not started yet:**
-- LLM extraction adapter (`extractApplication.js`, local Ollama)
 - Review queue API + UI (accept / dismiss candidates)
 - Reconciliation against existing applications (forward-only status updates)
+
+**LLM provider note:** the code supports both `ollama` (local) and `gemini` (cloud) behind one `LLM_PROVIDER` switch, per `docs/PHASE2.md`. In practice, local Ollama inference was too unreliable on this machine to build against (a 3B model timed out / hung mid-generation on a real sync run), so **Gemini (`gemini-flash-latest`, free tier) is the provider actually in use** for now. Ollama's adapter, config, and tests are all still there — flipping `LLM_PROVIDER=ollama` in `.env` switches back with no code changes.
 
 ## Roadmap
 

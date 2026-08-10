@@ -3,11 +3,14 @@ const { resetDatabase, pool } = require('./helpers');
 const oauthAccountModel = require('../src/models/oauthAccountModel');
 const tokenCrypto = require('../src/utils/tokenCrypto');
 
-// gmailClient.js is the only file that talks to Gmail directly -- I mock the
-// whole module here, same boundary-mocking approach as integrations.test.js,
-// so the controller/model/prefilter code underneath runs for real.
+// gmailClient.js and extractApplication.js are the only files that talk to
+// Gmail/the LLM directly -- I mock both whole modules here, same
+// boundary-mocking approach as integrations.test.js, so the
+// controller/model/prefilter code underneath runs for real.
 jest.mock('../src/integrations/gmailClient');
+jest.mock('../src/llm/extractApplication');
 const gmailClient = require('../src/integrations/gmailClient');
+const { extractApplication } = require('../src/llm/extractApplication');
 
 const app = require('../src/app');
 
@@ -40,7 +43,7 @@ async function connectGmail(userId) {
 
 // gmailClient.createClient is mocked to just return this marker object --
 // the real client is never constructed, so what it returns doesn't matter,
-// only that the same value flows into the other two mocked calls.
+// only that the same value flows into the other mocked calls.
 const FAKE_GMAIL = { marker: 'fake-gmail-client' };
 
 function summary(id, overrides = {}) {
@@ -53,6 +56,15 @@ function summary(id, overrides = {}) {
     ...overrides,
   };
 }
+
+const JOB_RELATED = {
+  is_job_related: true,
+  company: 'Some Company',
+  role: 'Graduate Engineer',
+  status: 'applied',
+  confidence: 0.9,
+};
+const NOT_JOB_RELATED = { is_job_related: false, company: null, role: null, status: null, confidence: 0.2 };
 
 describe('POST /api/sync/gmail', () => {
   test('requires auth', async () => {
@@ -67,31 +79,127 @@ describe('POST /api/sync/gmail', () => {
     expect(res.body.error).toMatch(/not connected/i);
   });
 
-  test('shortlists job-related messages and drops the rest without an LLM call', async () => {
+  test('prefilter-rejected messages are dropped without ever reaching the LLM', async () => {
     const { token, userId } = await createUser();
     await connectGmail(userId);
 
     gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
-    gmailClient.listMessageIds.mockResolvedValue(['m1', 'm2', 'm3']);
+    gmailClient.listMessageIds.mockResolvedValue(['m1', 'm2']);
     gmailClient.getMessageSummary.mockImplementation(async (_gmail, id) => {
       if (id === 'm1') return summary('m1', { subject: 'Your application to Some Company' });
-      if (id === 'm2') return summary('m2', { subject: 'Dinner Friday?', snippet: 'Free tonight?' });
-      return summary('m3', { from: 'no-reply@greenhouse.io', subject: 'Account update' });
+      return summary('m2', { subject: 'Dinner Friday?', snippet: 'Free tonight?' });
     });
+    gmailClient.getMessageBody.mockResolvedValue('body text');
+    extractApplication.mockResolvedValue(JOB_RELATED);
 
     const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.scanned).toBe(3);
-    expect(res.body.shortlisted.map((m) => m.id).sort()).toEqual(['m1', 'm3']);
+    expect(res.body.scanned).toBe(2);
+    expect(res.body.shortlisted).toBe(1); // only m1 passed the prefilter
+    expect(extractApplication).toHaveBeenCalledTimes(1); // never called for m2
 
-    // The prefilter-rejected message is recorded as processed so it's never
-    // re-fetched; the shortlisted ones are left for the next step.
     const [rows] = await pool.query(
+      'SELECT gmail_message_id FROM processed_emails WHERE user_id = ? ORDER BY gmail_message_id',
+      [userId]
+    );
+    expect(rows.map((r) => r.gmail_message_id)).toEqual(['m1', 'm2']);
+  });
+
+  test('a job-related extraction creates a candidate and marks the message processed', async () => {
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    gmailClient.listMessageIds.mockResolvedValue(['m1']);
+    gmailClient.getMessageSummary.mockResolvedValue(
+      summary('m1', { subject: 'Your application to Some Company' })
+    );
+    gmailClient.getMessageBody.mockResolvedValue('Thanks for applying to Some Company...');
+    extractApplication.mockResolvedValue(JOB_RELATED);
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.shortlisted).toBe(1);
+    expect(res.body.candidates).toBe(1);
+
+    // The LLM should see subject + sender + the full body, not just the snippet.
+    const emailText = extractApplication.mock.calls[0][0];
+    expect(emailText).toContain('Your application to Some Company');
+    expect(emailText).toContain('Thanks for applying to Some Company');
+
+    const [candidateRows] = await pool.query('SELECT * FROM candidates WHERE user_id = ?', [userId]);
+    expect(candidateRows).toHaveLength(1);
+    expect(candidateRows[0]).toMatchObject({
+      source_message_id: 'm1',
+      company: 'Some Company',
+      role: 'Graduate Engineer',
+      status: 'applied',
+      state: 'pending',
+      matched_application_id: null,
+    });
+
+    const [processedRows] = await pool.query(
       'SELECT gmail_message_id FROM processed_emails WHERE user_id = ?',
       [userId]
     );
-    expect(rows.map((r) => r.gmail_message_id)).toEqual(['m2']);
+    expect(processedRows.map((r) => r.gmail_message_id)).toEqual(['m1']);
+  });
+
+  test('an LLM "not job related" verdict marks processed without creating a candidate', async () => {
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    gmailClient.listMessageIds.mockResolvedValue(['m1']);
+    // Passes the cheap prefilter (mentions "interview") but the LLM,
+    // reading the real body, decides it's not actually job-related.
+    gmailClient.getMessageSummary.mockResolvedValue(summary('m1', { subject: 'Interview prep podcast' }));
+    gmailClient.getMessageBody.mockResolvedValue('Episode 12: how to prepare for any interview.');
+    extractApplication.mockResolvedValue(NOT_JOB_RELATED);
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.candidates).toBe(0);
+
+    const [candidateRows] = await pool.query('SELECT * FROM candidates WHERE user_id = ?', [userId]);
+    expect(candidateRows).toHaveLength(0);
+    const [processedRows] = await pool.query(
+      'SELECT gmail_message_id FROM processed_emails WHERE user_id = ?',
+      [userId]
+    );
+    expect(processedRows.map((r) => r.gmail_message_id)).toEqual(['m1']);
+  });
+
+  test('an LLM failure leaves the message unprocessed for the next sync to retry', async () => {
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    gmailClient.listMessageIds.mockResolvedValue(['m1']);
+    gmailClient.getMessageSummary.mockResolvedValue(
+      summary('m1', { subject: 'Your application to Some Company' })
+    );
+    gmailClient.getMessageBody.mockResolvedValue('body text');
+    extractApplication.mockRejectedValue(new Error('Ollama request failed: 500'));
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+
+    // The sync as a whole still succeeds -- one bad message doesn't fail the run.
+    expect(res.status).toBe(200);
+    expect(res.body.candidates).toBe(0);
+
+    const [candidateRows] = await pool.query('SELECT * FROM candidates WHERE user_id = ?', [userId]);
+    expect(candidateRows).toHaveLength(0);
+    // Crucially: NOT recorded as processed, so the next sync retries it
+    // instead of silently losing it because the LLM happened to be down.
+    const [processedRows] = await pool.query(
+      'SELECT gmail_message_id FROM processed_emails WHERE user_id = ?',
+      [userId]
+    );
+    expect(processedRows).toHaveLength(0);
   });
 
   test('does not re-fetch a message already recorded in processed_emails', async () => {
@@ -104,7 +212,7 @@ describe('POST /api/sync/gmail', () => {
       summary('m1', { subject: 'Dinner Friday?', snippet: 'Free tonight?' })
     );
 
-    // First sync: m1 is not job-related, gets recorded as processed.
+    // First sync: m1 fails the prefilter, gets recorded as processed.
     await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
     expect(gmailClient.getMessageSummary).toHaveBeenCalledTimes(1);
 
@@ -115,7 +223,7 @@ describe('POST /api/sync/gmail', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.scanned).toBe(1);
-    expect(res.body.shortlisted).toEqual([]);
+    expect(res.body.shortlisted).toBe(0);
     expect(gmailClient.getMessageSummary).not.toHaveBeenCalled();
   });
 

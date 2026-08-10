@@ -25,6 +25,20 @@ const config = {
   // utils/tokenCrypto.js. Generate with:
   //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   tokenEncKey: process.env.TOKEN_ENC_KEY || '',
+  llm: {
+    // 'ollama' | 'gemini' -- which provider src/llm/extractApplication.js
+    // calls. Ollama is the default: free, and email text never leaves the
+    // machine. Gemini is the fallback for a host that can't run Ollama.
+    provider: process.env.LLM_PROVIDER || 'ollama',
+    ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
+    ollamaModel: process.env.OLLAMA_MODEL || 'llama3.2:3b',
+    geminiApiKey: process.env.GEMINI_API_KEY || '',
+    // '-latest' alias rather than a pinned version -- pinned Gemini model
+    // names get deprecated/removed fairly quickly, and I'd rather track
+    // Google's current recommended flash model than have this silently 404
+    // again later.
+    geminiModel: process.env.GEMINI_MODEL || 'gemini-flash-latest',
+  },
   db: {
     host: process.env.DB_HOST || 'localhost',
     port: Number(process.env.DB_PORT) || 3306,

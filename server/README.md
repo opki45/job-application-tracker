@@ -47,11 +47,12 @@ src/
     applicationModel.js      # SQL for applications (all user-scoped)
     oauthAccountModel.js     # SQL for oauth_accounts (encrypted tokens)
     processedEmailModel.js   # SQL for processed_emails (Gmail sync dedupe)
+    candidateModel.js        # SQL for candidates (review queue)
   controllers/
     authController.js        # register / login / me
     applicationController.js # CRUD + filtering
     integrationController.js # Gmail OAuth connect/callback/status/disconnect
-    syncController.js        # POST /api/sync/gmail (fetch + prefilter pipeline)
+    syncController.js        # POST /api/sync/gmail (fetch/prefilter/extract pipeline)
   routes/
     authRoutes.js
     applicationRoutes.js
@@ -59,7 +60,9 @@ src/
     syncRoutes.js
   integrations/
     googleClient.js          # OAuth boundary (auth URL, code exchange, revoke)
-    gmailClient.js            # Gmail API boundary (list/get messages)
+    gmailClient.js            # Gmail API boundary (list/get messages, message bodies)
+  llm/
+    extractApplication.js     # single adapter, dispatches to Ollama or Gemini
   utils/
     validation.js            # request validation
     tokenCrypto.js            # AES-256-GCM encrypt/decrypt for stored tokens
@@ -71,9 +74,10 @@ tests/
   integrations.test.js
   sync.test.js
   emailPrefilter.test.js
+  extractApplication.test.js
 ```
 
-Phase 2 (Gmail auto-import) is in progress — see [`../docs/PHASE2.md`](../docs/PHASE2.md) for the full design. OAuth connect and the fetch+prefilter sync pipeline are built; the LLM extraction adapter, review-queue endpoints, and reconciliation are not yet.
+Phase 2 (Gmail auto-import) is in progress — see [`../docs/PHASE2.md`](../docs/PHASE2.md) for the full design. OAuth connect and the full fetch → prefilter → LLM extract → `candidates` pipeline are built and verified against a real Gmail inbox; the review-queue endpoints and reconciliation are not yet.
 
 ## Getting started
 
@@ -182,9 +186,11 @@ Requesting an application that doesn't exist, or that belongs to another user, r
 | GET    | `/api/integrations/gmail/callback`| –    | Public (Google redirect, no auth header). Exchanges `code`, stores encrypted tokens, redirects to the client with `?gmail=connected` or `?gmail=error` |
 | GET    | `/api/integrations/gmail/status`  | ✅   | `200 { connected }`                                                |
 | DELETE | `/api/integrations/gmail`         | ✅   | Revokes with Google and deletes stored tokens. `204`               |
-| POST   | `/api/sync/gmail`                 | ✅   | Runs the fetch + prefilter pipeline. `200 { scanned, shortlisted }`. `400` if Gmail isn't connected |
+| POST   | `/api/sync/gmail`                 | ✅   | Runs the full fetch → prefilter → extract pipeline. `200 { scanned, shortlisted, candidates }`. `400` if Gmail isn't connected |
 
-`POST /api/sync/gmail` doesn't write to `applications` yet — it lists recent mail, skips anything already recorded in `processed_emails`, and reports which messages passed the heuristic prefilter (sender/keyword match). The LLM extraction step that turns those into review-queue `candidates` isn't built yet.
+`POST /api/sync/gmail` lists recent mail, skips anything already in `processed_emails`, prefilters with cheap heuristics, then runs the LLM (`src/llm/extractApplication.js`) on whatever passed and writes a `candidates` row for anything job-related. It doesn't write to `applications` yet — that happens when a candidate is accepted through the review queue, which isn't built yet. An LLM call that fails outright (provider down) intentionally leaves that message unprocessed for the next sync to retry, rather than recording it as "not job-related" and losing it for good.
+
+**LLM provider:** `LLM_PROVIDER=ollama|gemini` in `.env` selects the adapter (see `.env.example`). Ollama is the spec's default (free, local, email never leaves the machine), but proved unreliable in practice on this machine — Gemini (`gemini-flash-latest`, free tier) is what's actually configured and verified end to end. Both are implemented and covered by mocked tests either way.
 
 ### Example
 
@@ -208,7 +214,7 @@ curl -X POST http://localhost:3000/api/applications \
 
 ## Roadmap
 
-- Finish Phase 2 — Gmail auto-import: LLM extraction adapter, review-queue endpoints, reconciliation (see [`../docs/PHASE2.md`](../docs/PHASE2.md))
+- Finish Phase 2 — Gmail auto-import: review-queue endpoints, reconciliation (see [`../docs/PHASE2.md`](../docs/PHASE2.md))
 - Pagination on the applications list
 - Rate limiting on login and a CORS/security-header layer
 - Later phase: RAG / evaluation harnesses
