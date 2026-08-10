@@ -45,19 +45,35 @@ src/
   models/
     userModel.js             # SQL for users
     applicationModel.js      # SQL for applications (all user-scoped)
+    oauthAccountModel.js     # SQL for oauth_accounts (encrypted tokens)
+    processedEmailModel.js   # SQL for processed_emails (Gmail sync dedupe)
   controllers/
     authController.js        # register / login / me
     applicationController.js # CRUD + filtering
+    integrationController.js # Gmail OAuth connect/callback/status/disconnect
+    syncController.js        # POST /api/sync/gmail (fetch + prefilter pipeline)
   routes/
     authRoutes.js
     applicationRoutes.js
+    integrationRoutes.js
+    syncRoutes.js
+  integrations/
+    googleClient.js          # OAuth boundary (auth URL, code exchange, revoke)
+    gmailClient.js            # Gmail API boundary (list/get messages)
   utils/
     validation.js            # request validation
+    tokenCrypto.js            # AES-256-GCM encrypt/decrypt for stored tokens
+    emailPrefilter.js         # cheap heuristic: is a message worth an LLM call?
 tests/
   helpers.js                 # resets the DB between tests
   auth.test.js
   applications.test.js
+  integrations.test.js
+  sync.test.js
+  emailPrefilter.test.js
 ```
+
+Phase 2 (Gmail auto-import) is in progress — see [`../docs/PHASE2.md`](../docs/PHASE2.md) for the full design. OAuth connect and the fetch+prefilter sync pipeline are built; the LLM extraction adapter, review-queue endpoints, and reconciliation are not yet.
 
 ## Getting started
 
@@ -98,6 +114,8 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
 For tests, I copy `.env` to `.env.test` and change `DB_NAME` to `job_tracker_test`. Jest sets `NODE_ENV=test`, and `config.js` loads `.env.test` automatically, so tests never touch my real data.
+
+`.env.example` also has a Phase 2 section (`GOOGLE_CLIENT_ID`, `TOKEN_ENC_KEY`, `OLLAMA_MODEL`, etc.) — those are only needed if you're setting up the Gmail integration; the core app runs fine without them. See [`../docs/PHASE2.md`](../docs/PHASE2.md).
 
 ### 4. Run
 
@@ -156,6 +174,18 @@ All responses are JSON. Protected endpoints require `Authorization: Bearer <toke
 
 Requesting an application that doesn't exist, or that belongs to another user, returns `404`.
 
+### Gmail integration (Phase 2)
+
+| Method | Path                             | Auth | Notes                                                            |
+|--------|-----------------------------------|------|-------------------------------------------------------------------|
+| GET    | `/api/integrations/gmail/connect` | ✅   | `200 { url }` — Google OAuth consent URL                          |
+| GET    | `/api/integrations/gmail/callback`| –    | Public (Google redirect, no auth header). Exchanges `code`, stores encrypted tokens, redirects to the client with `?gmail=connected` or `?gmail=error` |
+| GET    | `/api/integrations/gmail/status`  | ✅   | `200 { connected }`                                                |
+| DELETE | `/api/integrations/gmail`         | ✅   | Revokes with Google and deletes stored tokens. `204`               |
+| POST   | `/api/sync/gmail`                 | ✅   | Runs the fetch + prefilter pipeline. `200 { scanned, shortlisted }`. `400` if Gmail isn't connected |
+
+`POST /api/sync/gmail` doesn't write to `applications` yet — it lists recent mail, skips anything already recorded in `processed_emails`, and reports which messages passed the heuristic prefilter (sender/keyword match). The LLM extraction step that turns those into review-queue `candidates` isn't built yet.
+
 ### Example
 
 ```bash
@@ -178,7 +208,7 @@ curl -X POST http://localhost:3000/api/applications \
 
 ## Roadmap
 
-- React frontend (login, dashboard, status filter)
+- Finish Phase 2 — Gmail auto-import: LLM extraction adapter, review-queue endpoints, reconciliation (see [`../docs/PHASE2.md`](../docs/PHASE2.md))
 - Pagination on the applications list
 - Rate limiting on login and a CORS/security-header layer
-- Later phase: AI features (resume/job-description matching)
+- Later phase: RAG / evaluation harnesses

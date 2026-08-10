@@ -45,9 +45,10 @@ server/                     Express API
     db/                     mysql2 pool + schema.sql
     middleware/             JWT auth, central error handler
     models/                 all SQL lives here (user-scoped)
-    controllers/            register / login / applications CRUD
-    routes/                 auth + application routes
-    utils/                  request validation
+    controllers/            register / login / applications CRUD / Gmail integration + sync
+    routes/                 auth + application + integration + sync routes
+    integrations/           Gmail/Google API boundary modules (mocked in tests)
+    utils/                  request validation, token encryption, email prefilter
   tests/                    Jest + Supertest integration tests
 
 client/                     React app (Vite)
@@ -56,7 +57,7 @@ client/                     React app (Vite)
     AuthContext.jsx         auth state + token persistence
     ProtectedRoute.jsx      redirects if not logged in
     pages/                  Login, Register, Dashboard
-    components/             Logo, ApplicationItem, AuthLayout, ProductPreview
+    components/             Logo, ApplicationItem, AuthLayout, ProductPreview, GmailConnect
 ```
 
 ## Design decisions (and why)
@@ -113,9 +114,23 @@ npm test                    # runs the backend integration suite
 
 More detail on the API and backend design is in [`server/README.md`](server/README.md).
 
+## Phase 2 — Gmail auto-import (in progress)
+
+Full build spec: [`docs/PHASE2.md`](docs/PHASE2.md). Goal: connect Gmail (read-only), auto-detect application-related emails, extract structured data with a local LLM (Ollama), and surface it in a review queue — nothing is written to `applications` without the user approving it.
+
+**Done:**
+- Gmail OAuth connect/callback/status/disconnect, tokens encrypted at rest (`GmailConnect` on the dashboard)
+- `POST /api/sync/gmail` — lists recent mail, dedupes against already-seen messages, prefilters for likely-job-related content
+
+**Not started yet:**
+- LLM extraction adapter (`extractApplication.js`, local Ollama)
+- Review queue API + UI (accept / dismiss candidates)
+- Reconciliation against existing applications (forward-only status updates)
+
 ## Roadmap
 
+- Finish Phase 2 (see above)
 - Deploy (frontend host + backend host + cloud MySQL)
 - Pagination on the applications list
 - Rate limiting on login and a security-header layer
-- Later phase: AI features (resume / job-description matching)
+- Later phase: RAG / evaluation harnesses
