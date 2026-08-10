@@ -1,12 +1,30 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../AuthContext';
 import { api } from '../api';
 import Logo from '../components/Logo';
 import ApplicationItem from '../components/ApplicationItem';
 import GmailConnect from '../components/GmailConnect';
 import ReviewQueue from '../components/ReviewQueue';
+import Sidebar from '../components/Sidebar';
+import {
+  UserCircleIcon,
+  ChevronDownIcon,
+  LogoutIcon,
+  FolderIcon,
+  PaperPlaneIcon,
+  PeopleIcon,
+  BadgeCheckIcon,
+  PlusIcon,
+  FolderOpenIcon,
+} from '../components/icons';
 
 const STATUSES = ['applied', 'interviewing', 'offer', 'rejected', 'accepted'];
+
+// Static decorative squiggles for the stat cards -- there's no historical
+// time-series behind these (the API only ever returns current counts), so
+// this is the same kind of "shape of a trend" flourish the login page's
+// product preview uses, not a real chart.
+const SPARK_POINTS = ['0,14 12,10 24,13 36,5 48,8 60,2', '0,10 12,13 24,7 36,11 48,4 60,9'];
 
 function Dashboard() {
   const { user, logout } = useAuth();
@@ -21,9 +39,15 @@ function Dashboard() {
   const [role, setRole] = useState('');
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState('');
+  const companyInputRef = useRef(null);
 
-  // Load ALL applications once; I compute the stats and the filtered view from
-  // this single list, so the stat cards always reflect the full picture.
+  // Review queue state lives here (not inside ReviewQueue) so the pending
+  // count can also drive the sidebar badge, matching the reference design.
+  const [candidates, setCandidates] = useState([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [candidatesError, setCandidatesError] = useState('');
+
   const loadApplications = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -37,9 +61,22 @@ function Dashboard() {
     }
   }, []);
 
+  const loadCandidates = useCallback(async () => {
+    setCandidatesLoading(true);
+    try {
+      const data = await api.get('/candidates');
+      setCandidates(data.candidates);
+    } catch (err) {
+      setCandidatesError(err.message);
+    } finally {
+      setCandidatesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadApplications();
-  }, [loadApplications]);
+    loadCandidates();
+  }, [loadApplications, loadCandidates]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -81,6 +118,35 @@ function Dashboard() {
     await loadApplications();
   }
 
+  async function handleSyncGmail() {
+    setCandidatesError('');
+    setSyncing(true);
+    try {
+      await api.post('/sync/gmail');
+      await loadCandidates();
+    } catch (err) {
+      setCandidatesError(err.message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleAcceptCandidate(id, overrides) {
+    await api.post(`/candidates/${id}/accept`, overrides);
+    setCandidates((prev) => prev.filter((c) => c.id !== id));
+    await loadApplications();
+  }
+
+  async function handleDismissCandidate(id) {
+    await api.post(`/candidates/${id}/dismiss`);
+    setCandidates((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  function focusAddApplicationForm() {
+    companyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    companyInputRef.current?.focus();
+  }
+
   // Derived data (computed on each render from state — no extra state needed).
   const counts = applications.reduce((acc, a) => {
     acc[a.status] = (acc[a.status] || 0) + 1;
@@ -94,116 +160,209 @@ function Dashboard() {
     <div>
       <header className="topbar">
         <Logo />
-        <div className="user">
+        <div className="topbar-right">
           <GmailConnect />
-          <span className="email">{user.email}</span>
-          <button className="btn-ghost" onClick={logout}>
-            Log out
+          <div className="topbar-user">
+            <UserCircleIcon />
+            {user.email}
+            <ChevronDownIcon />
+          </div>
+          <button className="btn-logout" onClick={logout}>
+            <LogoutIcon /> Logout
           </button>
         </div>
       </header>
 
-      <div className="container">
-        <h1 className="page-title">Your applications</h1>
-        <p className="page-subtitle">Track every role from applied to offer.</p>
+      <div className="app-body">
+        <Sidebar
+          reviewQueueCount={candidates.length}
+          hasActivity={applications.length > 0 || candidates.length > 0}
+        />
 
-        {/* Stats */}
-        <div className="stats">
-          <div className="stat accent">
-            <div className="num">{applications.length}</div>
-            <div className="label">Total</div>
-          </div>
-          <div className="stat">
-            <div className="num">{counts.applied || 0}</div>
-            <div className="label">Applied</div>
-          </div>
-          <div className="stat">
-            <div className="num">{counts.interviewing || 0}</div>
-            <div className="label">Interviewing</div>
-          </div>
-          <div className="stat">
-            <div className="num">{(counts.offer || 0) + (counts.accepted || 0)}</div>
-            <div className="label">Offers</div>
-          </div>
-        </div>
-
-        {/* Create form — the primary action, made prominent */}
-        <div className="create-hero">
-          <div className="create-hero-head">
-            <span className="create-hero-icon">+</span>
-            <div>
-              <div className="create-hero-title">Add an application</div>
-              <div className="create-hero-sub">Log a new role you've applied to.</div>
+        <main className="main-content">
+          {/* Stats */}
+          <div className="stats-grid">
+            <div className="stat-card stat-total">
+              <div className="stat-card-head">
+                <span className="stat-label">Total</span>
+                <span className="stat-icon-badge">
+                  <FolderIcon />
+                </span>
+              </div>
+              <div className="stat-value">{applications.length}</div>
+              <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
+                <polyline points={SPARK_POINTS[0]} />
+              </svg>
+            </div>
+            <div className="stat-card stat-applied">
+              <div className="stat-card-head">
+                <span className="stat-label">Applied</span>
+                <span className="stat-icon-badge">
+                  <PaperPlaneIcon />
+                </span>
+              </div>
+              <div className="stat-value">{counts.applied || 0}</div>
+              <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
+                <polyline points={SPARK_POINTS[1]} />
+              </svg>
+            </div>
+            <div className="stat-card stat-interviewing">
+              <div className="stat-card-head">
+                <span className="stat-label">Interviewing</span>
+                <span className="stat-icon-badge">
+                  <PeopleIcon />
+                </span>
+              </div>
+              <div className="stat-value">{counts.interviewing || 0}</div>
+              <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
+                <polyline points={SPARK_POINTS[0]} />
+              </svg>
+            </div>
+            <div className="stat-card stat-offer">
+              <div className="stat-card-head">
+                <span className="stat-label">Offers</span>
+                <span className="stat-icon-badge">
+                  <BadgeCheckIcon />
+                </span>
+              </div>
+              <div className="stat-value">{(counts.offer || 0) + (counts.accepted || 0)}</div>
+              <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
+                <polyline points={SPARK_POINTS[1]} />
+              </svg>
             </div>
           </div>
-          <form className="create-form" onSubmit={handleCreate}>
-            <input
-              placeholder="Company (e.g. Monzo)"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              required
-            />
-            <input
-              placeholder="Role (e.g. Graduate Engineer)"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              required
-            />
-            <button type="submit" className="btn-primary" disabled={creating}>
-              {creating ? 'Adding...' : 'Add application'}
-            </button>
-            {formError && <span className="error">{formError}</span>}
-          </form>
-        </div>
 
-        <ReviewQueue onApplicationCreated={loadApplications} />
+          <div className="panels-row">
+            {/* Add an application */}
+            <div className="panel-card">
+              <div className="panel-title">Add an application</div>
+              <p className="panel-subtitle">Manually add a job to keep your search organized.</p>
+              <form className="add-app-form" onSubmit={handleCreate}>
+                <div>
+                  <label className="field-label" htmlFor="add-company">
+                    Company name
+                  </label>
+                  <input
+                    id="add-company"
+                    ref={companyInputRef}
+                    placeholder="e.g. Linear"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="field-label" htmlFor="add-role">
+                    Role
+                  </label>
+                  <input
+                    id="add-role"
+                    placeholder="e.g. Product Designer"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn-primary btn-add-application" disabled={creating}>
+                  {creating ? (
+                    'Adding...'
+                  ) : (
+                    <>
+                      Add application <PlusIcon />
+                    </>
+                  )}
+                </button>
+                {formError && <span className="error">{formError}</span>}
+              </form>
+            </div>
 
-        {/* List header + filter */}
-        <div className="list-head">
-          <h2>
-            {statusFilter ? `${statusFilter} (${visible.length})` : `All (${applications.length})`}
-          </h2>
-          <div className="toolbar">
-            <label htmlFor="status-filter">Filter:</label>
-            <select
-              id="status-filter"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">All statuses</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+            <ReviewQueue
+              candidates={candidates}
+              loading={candidatesLoading}
+              syncing={syncing}
+              error={candidatesError}
+              onSync={handleSyncGmail}
+              onAccept={handleAcceptCandidate}
+              onDismiss={handleDismissCandidate}
+            />
           </div>
-        </div>
 
-        {/* States */}
-        {loading && <p className="muted">Loading...</p>}
-        {error && <p className="error">{error}</p>}
-        {!loading && !error && applications.length === 0 && (
-          <div className="empty">
-            <div className="empty-icon">📮</div>
-            <p>No applications yet. Add your first one above.</p>
+          {/* Your applications */}
+          <div className="panel-card">
+            <div className="panel-head-row">
+              <span className="panel-title">Your applications</span>
+            </div>
+            <div className="filter-row">
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="">All statuses</option>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <span>{visible.length} results</span>
+            </div>
+
+            {/* loading only gates the FIRST load's placeholder text -- once
+                there's data, later refetches (e.g. after saving notes or
+                changing a status) must not unmount the table, or every
+                ApplicationItem loses its local state (an open notes drawer,
+                mid-edit text) on every save. */}
+            {loading && applications.length === 0 && <p className="muted">Loading...</p>}
+            {error && <p className="error">{error}</p>}
+
+            {!error && !loading && applications.length === 0 && (
+              <div className="empty-state">
+                <div className="empty-state-icon">
+                  <FolderOpenIcon />
+                </div>
+                <div className="empty-state-title">No applications yet</div>
+                <p className="empty-state-sub">
+                  Add your first application manually or connect Gmail to automatically import
+                  from your inbox.
+                </p>
+                <button type="button" className="btn-primary" onClick={focusAddApplicationForm}>
+                  Add your first application
+                </button>
+              </div>
+            )}
+
+            {!error && applications.length > 0 && visible.length === 0 && (
+              <p className="muted" style={{ textAlign: 'center', padding: '2.5rem 0' }}>
+                No applications with status &ldquo;{statusFilter}&rdquo;.
+              </p>
+            )}
+
+            {!error && visible.length > 0 && (
+              <div className="applications-panel-scroll">
+                <table className="applications-table">
+                  <thead>
+                    <tr>
+                      <th>Company / Role</th>
+                      <th>Date applied</th>
+                      <th>Notes</th>
+                      <th>Status</th>
+                      <th>Source</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.map((app) => (
+                      <ApplicationItem
+                        key={app.id}
+                        app={app}
+                        onStatusChange={handleStatusChange}
+                        onDelete={handleDelete}
+                        onSaveNotes={handleSaveNotes}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
-        {!loading && !error && applications.length > 0 && visible.length === 0 && (
-          <p className="muted">No applications with status “{statusFilter}”.</p>
-        )}
-
-        <ul className="app-list">
-          {visible.map((app) => (
-            <ApplicationItem
-              key={app.id}
-              app={app}
-              onStatusChange={handleStatusChange}
-              onDelete={handleDelete}
-              onSaveNotes={handleSaveNotes}
-            />
-          ))}
-        </ul>
+        </main>
       </div>
     </div>
   );

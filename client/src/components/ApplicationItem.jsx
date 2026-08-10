@@ -1,24 +1,48 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import CompanyLogo from './CompanyLogo';
+import { NoteIcon, DotsHorizontalIcon, GmailIcon } from './icons';
 
 const STATUSES = ['applied', 'interviewing', 'offer', 'rejected', 'accepted'];
 
-// One row. Receives the application (`app`) and callbacks to change status,
-// delete, and save notes. Holds a little local UI state: whether the company
-// logo failed to load, whether the notes drawer is open, and the notes text.
+// app.date_applied is a "YYYY-MM-DD" string (dateStrings:true on the pool).
+// I build the Date from its parts rather than `new Date(dateString)` --
+// the latter parses as UTC midnight, which can display as the PREVIOUS day
+// once toLocaleDateString renders it in a timezone behind UTC.
+function formatDate(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+// One row in the applications table (plus a second, conditional row directly
+// below it holding the notes editor when expanded -- a <tr> is the only way
+// to span all columns inside a <table>, so the drawer is a sibling row, not
+// a nested block). Receives the application (`app`) and callbacks to change
+// status, delete, and save notes.
 function ApplicationItem({ app, onStatusChange, onDelete, onSaveNotes }) {
-  const [logoError, setLogoError] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState(app.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
-  const initial = app.company.charAt(0).toUpperCase();
-  // Guess the company's domain from its name and fetch its favicon from Google.
-  // Reliable and free; for known companies it returns the real brand icon. If
-  // the request ever fails, onError falls back to the coloured initial.
-  const domain = app.company.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
-  const logoUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
   const hasNotes = (app.notes || '').trim().length > 0;
+
+  // Close the actions menu on an outside click, same as any dropdown.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClick(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuOpen]);
 
   async function handleSaveNotes() {
     setSavingNotes(true);
@@ -33,33 +57,29 @@ function ApplicationItem({ app, onStatusChange, onDelete, onSaveNotes }) {
   }
 
   return (
-    <li className={`app-item row-${app.status}`}>
-      <div className="app-row">
-        <div className={`avatar${logoError ? '' : ' has-logo'}`}>
-          {logoError ? (
-            initial
-          ) : (
-            <img src={logoUrl} alt="" onError={() => setLogoError(true)} />
-          )}
-        </div>
-
-        <div className="app-main">
-          <div className="company">{app.company}</div>
-          <div className="role">{app.role}</div>
-        </div>
-
-        <div className="app-spacer" />
-
-        <div className="app-meta">
-          <span className="app-date">applied {app.date_applied}</span>
-
+    <>
+      <tr className={`row-${app.status}`}>
+        <td>
+          <div className="table-company">
+            <CompanyLogo company={app.company} />
+            <div>
+              <div className="company">{app.company}</div>
+              <div className="role">{app.role}</div>
+            </div>
+          </div>
+        </td>
+        <td className="table-date">{formatDate(app.date_applied)}</td>
+        <td>
           <button
             className={`notes-btn${hasNotes ? ' has-notes' : ''}`}
             onClick={() => setExpanded((v) => !v)}
+            aria-label={hasNotes ? 'View notes' : 'Add notes'}
+            title={hasNotes ? 'View notes' : 'Add notes'}
           >
-            {hasNotes ? '📝 Notes' : 'Notes'}
+            <NoteIcon />
           </button>
-
+        </td>
+        <td>
           <select
             className={`status-select status-${app.status}`}
             value={app.status}
@@ -71,38 +91,65 @@ function ApplicationItem({ app, onStatusChange, onDelete, onSaveNotes }) {
               </option>
             ))}
           </select>
-
+        </td>
+        <td>
+          <span className="table-source">
+            {app.source === 'email' ? (
+              <>
+                <GmailIcon /> Gmail
+              </>
+            ) : (
+              'Manual'
+            )}
+          </span>
+        </td>
+        <td className="table-actions" ref={menuRef}>
           <button
             className="btn-icon"
-            onClick={() => onDelete(app.id)}
-            title="Delete application"
-            aria-label="Delete application"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Row actions"
           >
-            ✕
+            <DotsHorizontalIcon />
           </button>
-        </div>
-      </div>
+          {menuOpen && (
+            <div className="actions-menu">
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDelete(app.id);
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </td>
+      </tr>
 
       {expanded && (
-        <div className="app-notes">
-          <textarea
-            placeholder="Add notes — recruiter name, next steps, interview dates..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-          <div className="notes-actions">
-            <button
-              className="btn-primary btn-sm"
-              onClick={handleSaveNotes}
-              disabled={savingNotes}
-            >
-              {savingNotes ? 'Saving...' : 'Save notes'}
-            </button>
-            {saved && <span className="notes-saved">Saved ✓</span>}
-          </div>
-        </div>
+        <tr>
+          <td colSpan={6} style={{ padding: 0 }}>
+            <div className="app-notes">
+              <textarea
+                placeholder="Add notes — recruiter name, next steps, interview dates..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+              <div className="notes-actions">
+                <button
+                  className="btn-primary btn-sm"
+                  onClick={handleSaveNotes}
+                  disabled={savingNotes}
+                >
+                  {savingNotes ? 'Saving...' : 'Save notes'}
+                </button>
+                {saved && <span className="notes-saved">Saved ✓</span>}
+              </div>
+            </div>
+          </td>
+        </tr>
       )}
-    </li>
+    </>
   );
 }
 
