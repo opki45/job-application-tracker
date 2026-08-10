@@ -72,7 +72,11 @@ async function accept(req, res, next) {
       // "YYYY-MM-DD HH:MM:SS" string, not a Date object.
       date_applied: req.body.date_applied ?? String(candidate.created_at).slice(0, 10),
       job_description: null,
-      notes: `Imported from Gmail (confidence ${candidate.confidence})`,
+      // Leave notes empty by default (same as a manually-added application)
+      // rather than pre-filling extraction metadata like confidence into a
+      // field meant for the user's own notes. Still overridable if the
+      // client sends one.
+      notes: req.body.notes ?? null,
       source: 'email',
     };
 

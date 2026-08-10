@@ -111,7 +111,7 @@ function CandidateCard({ candidate, onAccept, onDismiss }) {
 // applications -- nothing here is written to applications until the user
 // hits Accept. Fully controlled by the parent (Dashboard) so the pending
 // count can also drive the sidebar badge.
-function ReviewQueue({ candidates, loading, syncing, error, onSync, onAccept, onDismiss }) {
+function ReviewQueue({ candidates, loading, syncing, error, gmailConnected, onSync, onAccept, onDismiss }) {
   return (
     <div className="panel-card">
       <div className="panel-head-row">
@@ -131,8 +131,21 @@ function ReviewQueue({ candidates, loading, syncing, error, onSync, onAccept, on
           <div className="empty-state-icon">
             <EnvelopeOpenIcon />
           </div>
-          <div className="empty-state-title">No candidates waiting for review</div>
-          <p className="empty-state-sub">Connect Gmail and we&rsquo;ll scan your inbox for job application emails.</p>
+          {gmailConnected ? (
+            <>
+              <div className="empty-state-title">Gmail connected</div>
+              <p className="empty-state-sub">
+                Press Sync Gmail now to scan your inbox for job application emails.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="empty-state-title">No candidates waiting for review</div>
+              <p className="empty-state-sub">
+                Connect Gmail and we&rsquo;ll scan your inbox for job application emails.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <ul className="candidate-list">

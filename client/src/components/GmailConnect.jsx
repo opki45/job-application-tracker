@@ -1,32 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../api';
 
-// Small self-contained widget: shows whether Gmail is connected and lets the
-// user connect/disconnect. No email reading happens yet -- this is just the
-// OAuth on/off switch (Phase 2, step 1 of docs/PHASE2.md's build order).
-function GmailConnect() {
-  const [connected, setConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
+// Small widget: shows whether Gmail is connected and lets the user
+// connect/disconnect. Connection status itself is owned by Dashboard (not
+// this component) so ReviewQueue can also read it -- e.g. to tell a
+// connected-but-empty queue apart from a not-yet-connected one.
+function GmailConnect({ connected, loading, onConnectedChange }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // Set once, from the ?gmail=... param the OAuth callback redirects back
   // with, since that's the only place a connect attempt can fail server-side.
   const [callbackMessage, setCallbackMessage] = useState('');
-
-  const loadStatus = useCallback(async () => {
-    try {
-      const data = await api.get('/integrations/gmail/status');
-      setConnected(data.connected);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadStatus();
-  }, [loadStatus]);
 
   // Read the callback result out of the URL once, then strip it so a refresh
   // doesn't keep re-showing it.
@@ -63,7 +47,7 @@ function GmailConnect() {
     setError('');
     try {
       await api.del('/integrations/gmail');
-      setConnected(false);
+      onConnectedChange(false);
     } catch (err) {
       setError(err.message);
     } finally {

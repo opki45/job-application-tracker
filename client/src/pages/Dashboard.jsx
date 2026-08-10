@@ -48,6 +48,12 @@ function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [candidatesError, setCandidatesError] = useState('');
 
+  // Gmail connection status also lives here (not inside GmailConnect) so
+  // ReviewQueue's empty state can tell "not connected yet" apart from
+  // "connected, just nothing pending" -- two different messages.
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailStatusLoading, setGmailStatusLoading] = useState(true);
+
   const loadApplications = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -73,10 +79,24 @@ function Dashboard() {
     }
   }, []);
 
+  const loadGmailStatus = useCallback(async () => {
+    try {
+      const data = await api.get('/integrations/gmail/status');
+      setGmailConnected(data.connected);
+    } catch {
+      // GmailConnect's own connect/disconnect actions surface their own
+      // errors; this is just a read of current status, so I leave it at
+      // its last known value rather than adding a second error UI for it.
+    } finally {
+      setGmailStatusLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadApplications();
     loadCandidates();
-  }, [loadApplications, loadCandidates]);
+    loadGmailStatus();
+  }, [loadApplications, loadCandidates, loadGmailStatus]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -161,7 +181,11 @@ function Dashboard() {
       <header className="topbar">
         <Logo />
         <div className="topbar-right">
-          <GmailConnect />
+          <GmailConnect
+            connected={gmailConnected}
+            loading={gmailStatusLoading}
+            onConnectedChange={setGmailConnected}
+          />
           <div className="topbar-user">
             <UserCircleIcon />
             {user.email}
@@ -281,6 +305,7 @@ function Dashboard() {
               loading={candidatesLoading}
               syncing={syncing}
               error={candidatesError}
+              gmailConnected={gmailConnected}
               onSync={handleSyncGmail}
               onAccept={handleAcceptCandidate}
               onDismiss={handleDismissCandidate}
