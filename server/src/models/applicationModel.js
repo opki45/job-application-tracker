@@ -31,22 +31,64 @@ async function createApplication(userId, data) {
   return findApplicationById(userId, result.insertId);
 }
 
-// The dashboard list. Optional status filter. Newest first.
-async function findApplications(userId, { status } = {}) {
+// Sortable columns a client can ask for. Never taken from user input directly
+// for the SQL itself -- same whitelist principle as WRITABLE_COLUMNS below,
+// just for ORDER BY instead of SET.
+const SORT_COLUMNS = {
+  date_applied: 'date_applied',
+  company: 'company',
+  role: 'role',
+  status: 'status',
+  created_at: 'created_at',
+};
+
+// The applications list. Two shapes depending on whether `page` is given:
+//   - no page: returns a plain array, unpaginated -- this is what the
+//     Dashboard's own summary table and syncController's reconciliation
+//     matching both need (reconciliation in particular needs the user's
+//     FULL application set to match against, not one page of it).
+//   - page given: returns { applications, total } for the dedicated
+//     Applications page's search/sort/pagination UI.
+// `search` matches company or role (substring, case-insensitive by MySQL's
+// default collation). `sort`/`order` control ORDER BY; both fall back to a
+// sane default rather than erroring on a bad value, since this only affects
+// display order, never which rows are returned.
+async function findApplications(userId, { status, search, sort, order, page, pageSize } = {}) {
+  const conditions = ['user_id = ?'];
+  const params = [userId];
+
   if (status) {
-    const [rows] = await pool.execute(
-      `SELECT * FROM applications
-        WHERE user_id = ? AND status = ?
-        ORDER BY date_applied DESC, id DESC`,
-      [userId, status]
-    );
-    return rows;
+    conditions.push('status = ?');
+    params.push(status);
   }
-  const [rows] = await pool.execute(
-    `SELECT * FROM applications
-      WHERE user_id = ?
-      ORDER BY date_applied DESC, id DESC`,
-    [userId]
+  if (search) {
+    conditions.push('(company LIKE ? OR role LIKE ?)');
+    const like = `%${search}%`;
+    params.push(like, like);
+  }
+
+  const whereClause = conditions.join(' AND ');
+  const sortColumn = SORT_COLUMNS[sort] || 'date_applied';
+  const sortOrder = String(order).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  const orderClause = `ORDER BY ${sortColumn} ${sortOrder}, id DESC`;
+
+  if (page) {
+    const size = Math.min(Math.max(Number(pageSize) || 20, 1), 100);
+    const offset = (Math.max(Number(page), 1) - 1) * size;
+    const [rows] = await pool.query(
+      `SELECT * FROM applications WHERE ${whereClause} ${orderClause} LIMIT ? OFFSET ?`,
+      [...params, size, offset]
+    );
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM applications WHERE ${whereClause}`,
+      params
+    );
+    return { applications: rows, total };
+  }
+
+  const [rows] = await pool.query(
+    `SELECT * FROM applications WHERE ${whereClause} ${orderClause}`,
+    params
   );
   return rows;
 }

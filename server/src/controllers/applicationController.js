@@ -5,11 +5,29 @@ const { validateApplication } = require('../utils/validation');
 // middleware set from the verified token. The client never tells me who it is —
 // I take it from the token — so a user can only ever act as themselves.
 
-// GET /api/applications            -> list all (dashboard)
-// GET /api/applications?status=x   -> list filtered by status
+// GET /api/applications                      -> list all (dashboard)
+// GET /api/applications?status=x              -> list filtered by status
+// GET /api/applications?page=1&pageSize=20     -> paginated, plus optional
+//   &search=&sort=&order=  (the dedicated Applications page)
+// `page` is what switches the response shape: without it, { applications }
+// (unpaginated, what the dashboard's own summary table expects); with it,
+// { applications, total, page, pageSize } so the client can render page
+// controls.
 async function list(req, res, next) {
   try {
-    const { status } = req.query;
+    const { status, search, sort, order, page, pageSize } = req.query;
+    if (page) {
+      const size = Number(pageSize) || 20;
+      const result = await applicationModel.findApplications(req.user.id, {
+        status,
+        search,
+        sort,
+        order,
+        page: Number(page),
+        pageSize: size,
+      });
+      return res.json({ ...result, page: Number(page), pageSize: size });
+    }
     const applications = await applicationModel.findApplications(req.user.id, { status });
     return res.json({ applications });
   } catch (err) {

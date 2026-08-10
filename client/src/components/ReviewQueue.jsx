@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import CompanyLogo from './CompanyLogo';
 import { EnvelopeOpenIcon } from './icons';
+import { useGmail } from '../GmailContext';
 
 const STATUSES = ['applied', 'interviewing', 'offer', 'rejected', 'accepted'];
 
@@ -111,7 +112,8 @@ function CandidateCard({ candidate, onAccept, onDismiss }) {
 // applications -- nothing here is written to applications until the user
 // hits Accept. Fully controlled by the parent (Dashboard) so the pending
 // count can also drive the sidebar badge.
-function ReviewQueue({ candidates, loading, syncing, error, gmailConnected, onSync, onAccept, onDismiss }) {
+function ReviewQueue({ candidates, loading, syncing, error, onSync, onAccept, onDismiss }) {
+  const { connected: gmailConnected } = useGmail();
   return (
     <div className="panel-card">
       <div className="panel-head-row">

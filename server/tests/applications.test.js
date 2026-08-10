@@ -89,6 +89,76 @@ describe('GET /api/applications (list + filter)', () => {
   });
 });
 
+describe('GET /api/applications?page= (pagination/search/sort)', () => {
+  async function seedApplications() {
+    const companies = ['Amazon', 'Monzo', 'Synthesia', 'Wayve', 'Palantir'];
+    for (const [i, company] of companies.entries()) {
+      await auth(request(app).post('/api/applications')).send({
+        company,
+        role: 'Graduate Engineer',
+        date_applied: `2024-05-${String(10 + i).padStart(2, '0')}`,
+      });
+    }
+  }
+
+  test('without page, returns the plain unpaginated shape (dashboard behavior unchanged)', async () => {
+    await seedApplications();
+    const res = await auth(request(app).get('/api/applications'));
+    expect(res.status).toBe(200);
+    expect(res.body.applications).toHaveLength(5);
+    expect(res.body.total).toBeUndefined();
+  });
+
+  test('with page, returns { applications, total, page, pageSize }', async () => {
+    await seedApplications();
+    const res = await auth(request(app).get('/api/applications?page=1&pageSize=2'));
+    expect(res.status).toBe(200);
+    expect(res.body.applications).toHaveLength(2);
+    expect(res.body.total).toBe(5);
+    expect(res.body.page).toBe(1);
+    expect(res.body.pageSize).toBe(2);
+  });
+
+  test('page 2 returns the next slice, not an overlapping or empty one', async () => {
+    await seedApplications();
+    const page1 = await auth(request(app).get('/api/applications?page=1&pageSize=2'));
+    const page2 = await auth(request(app).get('/api/applications?page=2&pageSize=2'));
+
+    expect(page2.body.applications).toHaveLength(2);
+    const page1Ids = page1.body.applications.map((a) => a.id);
+    const page2Ids = page2.body.applications.map((a) => a.id);
+    expect(page1Ids.some((id) => page2Ids.includes(id))).toBe(false);
+  });
+
+  test('search matches company (case-insensitive substring)', async () => {
+    await seedApplications();
+    const res = await auth(request(app).get('/api/applications?page=1&pageSize=20&search=syn'));
+    expect(res.body.applications).toHaveLength(1);
+    expect(res.body.applications[0].company).toBe('Synthesia');
+  });
+
+  test('sort=company&order=asc sorts alphabetically instead of the date_applied default', async () => {
+    await seedApplications();
+    const res = await auth(
+      request(app).get('/api/applications?page=1&pageSize=20&sort=company&order=asc')
+    );
+    expect(res.body.applications.map((a) => a.company)).toEqual([
+      'Amazon',
+      'Monzo',
+      'Palantir',
+      'Synthesia',
+      'Wayve',
+    ]);
+  });
+
+  test('an unrecognized sort value falls back to the default rather than erroring', async () => {
+    await seedApplications();
+    const res = await auth(request(app).get('/api/applications?page=1&pageSize=20&sort=nope'));
+    expect(res.status).toBe(200);
+    expect(res.body.applications).toHaveLength(5);
+  });
+});
+
 describe('GET /api/applications/:id', () => {
   test('returns 404 for another user\'s application', async () => {
     const created = await auth(request(app).post('/api/applications'))

@@ -1,15 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '../AuthContext';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
-import Logo from '../components/Logo';
+import AppShell from '../components/AppShell';
 import ApplicationItem from '../components/ApplicationItem';
-import GmailConnect from '../components/GmailConnect';
 import ReviewQueue from '../components/ReviewQueue';
-import Sidebar from '../components/Sidebar';
 import {
-  UserCircleIcon,
-  ChevronDownIcon,
-  LogoutIcon,
   FolderIcon,
   PaperPlaneIcon,
   PeopleIcon,
@@ -23,12 +18,11 @@ const STATUSES = ['applied', 'interviewing', 'offer', 'rejected', 'accepted'];
 // Static decorative squiggles for the stat cards -- there's no historical
 // time-series behind these (the API only ever returns current counts), so
 // this is the same kind of "shape of a trend" flourish the login page's
-// product preview uses, not a real chart.
+// product preview uses, not a real chart. The Analytics page has the real
+// applications-over-time chart.
 const SPARK_POINTS = ['0,14 12,10 24,13 36,5 48,8 60,2', '0,10 12,13 24,7 36,11 48,4 60,9'];
 
 function Dashboard() {
-  const { user, logout } = useAuth();
-
   const [applications, setApplications] = useState([]);
   const [statusFilter, setStatusFilter] = useState(''); // '' = all
   const [loading, setLoading] = useState(true);
@@ -41,18 +35,12 @@ function Dashboard() {
   const [formError, setFormError] = useState('');
   const companyInputRef = useRef(null);
 
-  // Review queue state lives here (not inside ReviewQueue) so the pending
-  // count can also drive the sidebar badge, matching the reference design.
+  // Review queue state lives here (not inside ReviewQueue) so its count can
+  // also factor into hasActivity below.
   const [candidates, setCandidates] = useState([]);
   const [candidatesLoading, setCandidatesLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [candidatesError, setCandidatesError] = useState('');
-
-  // Gmail connection status also lives here (not inside GmailConnect) so
-  // ReviewQueue's empty state can tell "not connected yet" apart from
-  // "connected, just nothing pending" -- two different messages.
-  const [gmailConnected, setGmailConnected] = useState(false);
-  const [gmailStatusLoading, setGmailStatusLoading] = useState(true);
 
   const loadApplications = useCallback(async () => {
     setLoading(true);
@@ -79,24 +67,10 @@ function Dashboard() {
     }
   }, []);
 
-  const loadGmailStatus = useCallback(async () => {
-    try {
-      const data = await api.get('/integrations/gmail/status');
-      setGmailConnected(data.connected);
-    } catch {
-      // GmailConnect's own connect/disconnect actions surface their own
-      // errors; this is just a read of current status, so I leave it at
-      // its last known value rather than adding a second error UI for it.
-    } finally {
-      setGmailStatusLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     loadApplications();
     loadCandidates();
-    loadGmailStatus();
-  }, [loadApplications, loadCandidates, loadGmailStatus]);
+  }, [loadApplications, loadCandidates]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -177,219 +151,193 @@ function Dashboard() {
     : applications;
 
   return (
-    <div>
-      <header className="topbar">
-        <Logo />
-        <div className="topbar-right">
-          <GmailConnect
-            connected={gmailConnected}
-            loading={gmailStatusLoading}
-            onConnectedChange={setGmailConnected}
-          />
-          <div className="topbar-user">
-            <UserCircleIcon />
-            {user.email}
-            <ChevronDownIcon />
+    <AppShell activeNav="dashboard" hasActivity={applications.length > 0 || candidates.length > 0}>
+      {/* Stats */}
+      <div className="stats-grid">
+        <div className="stat-card stat-total">
+          <div className="stat-card-head">
+            <span className="stat-label">Total</span>
+            <span className="stat-icon-badge">
+              <FolderIcon />
+            </span>
           </div>
-          <button className="btn-logout" onClick={logout}>
-            <LogoutIcon /> Logout
-          </button>
+          <div className="stat-value">{applications.length}</div>
+          <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={SPARK_POINTS[0]} />
+          </svg>
         </div>
-      </header>
-
-      <div className="app-body">
-        <Sidebar
-          reviewQueueCount={candidates.length}
-          hasActivity={applications.length > 0 || candidates.length > 0}
-        />
-
-        <main className="main-content">
-          {/* Stats */}
-          <div className="stats-grid">
-            <div className="stat-card stat-total">
-              <div className="stat-card-head">
-                <span className="stat-label">Total</span>
-                <span className="stat-icon-badge">
-                  <FolderIcon />
-                </span>
-              </div>
-              <div className="stat-value">{applications.length}</div>
-              <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
-                <polyline points={SPARK_POINTS[0]} />
-              </svg>
-            </div>
-            <div className="stat-card stat-applied">
-              <div className="stat-card-head">
-                <span className="stat-label">Applied</span>
-                <span className="stat-icon-badge">
-                  <PaperPlaneIcon />
-                </span>
-              </div>
-              <div className="stat-value">{counts.applied || 0}</div>
-              <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
-                <polyline points={SPARK_POINTS[1]} />
-              </svg>
-            </div>
-            <div className="stat-card stat-interviewing">
-              <div className="stat-card-head">
-                <span className="stat-label">Interviewing</span>
-                <span className="stat-icon-badge">
-                  <PeopleIcon />
-                </span>
-              </div>
-              <div className="stat-value">{counts.interviewing || 0}</div>
-              <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
-                <polyline points={SPARK_POINTS[0]} />
-              </svg>
-            </div>
-            <div className="stat-card stat-offer">
-              <div className="stat-card-head">
-                <span className="stat-label">Offers</span>
-                <span className="stat-icon-badge">
-                  <BadgeCheckIcon />
-                </span>
-              </div>
-              <div className="stat-value">{(counts.offer || 0) + (counts.accepted || 0)}</div>
-              <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
-                <polyline points={SPARK_POINTS[1]} />
-              </svg>
-            </div>
+        <div className="stat-card stat-applied">
+          <div className="stat-card-head">
+            <span className="stat-label">Applied</span>
+            <span className="stat-icon-badge">
+              <PaperPlaneIcon />
+            </span>
           </div>
-
-          <div className="panels-row">
-            {/* Add an application */}
-            <div className="panel-card">
-              <div className="panel-title">Add an application</div>
-              <p className="panel-subtitle">Manually add a job to keep your search organized.</p>
-              <form className="add-app-form" onSubmit={handleCreate}>
-                <div>
-                  <label className="field-label" htmlFor="add-company">
-                    Company name
-                  </label>
-                  <input
-                    id="add-company"
-                    ref={companyInputRef}
-                    placeholder="e.g. Linear"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="field-label" htmlFor="add-role">
-                    Role
-                  </label>
-                  <input
-                    id="add-role"
-                    placeholder="e.g. Product Designer"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    required
-                  />
-                </div>
-                <button type="submit" className="btn-primary btn-add-application" disabled={creating}>
-                  {creating ? (
-                    'Adding...'
-                  ) : (
-                    <>
-                      Add application <PlusIcon />
-                    </>
-                  )}
-                </button>
-                {formError && <span className="error">{formError}</span>}
-              </form>
-            </div>
-
-            <ReviewQueue
-              candidates={candidates}
-              loading={candidatesLoading}
-              syncing={syncing}
-              error={candidatesError}
-              gmailConnected={gmailConnected}
-              onSync={handleSyncGmail}
-              onAccept={handleAcceptCandidate}
-              onDismiss={handleDismissCandidate}
-            />
+          <div className="stat-value">{counts.applied || 0}</div>
+          <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={SPARK_POINTS[1]} />
+          </svg>
+        </div>
+        <div className="stat-card stat-interviewing">
+          <div className="stat-card-head">
+            <span className="stat-label">Interviewing</span>
+            <span className="stat-icon-badge">
+              <PeopleIcon />
+            </span>
           </div>
-
-          {/* Your applications */}
-          <div className="panel-card">
-            <div className="panel-head-row">
-              <span className="panel-title">Your applications</span>
-            </div>
-            <div className="filter-row">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="">All statuses</option>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-              <span>{visible.length} results</span>
-            </div>
-
-            {/* loading only gates the FIRST load's placeholder text -- once
-                there's data, later refetches (e.g. after saving notes or
-                changing a status) must not unmount the table, or every
-                ApplicationItem loses its local state (an open notes drawer,
-                mid-edit text) on every save. */}
-            {loading && applications.length === 0 && <p className="muted">Loading...</p>}
-            {error && <p className="error">{error}</p>}
-
-            {!error && !loading && applications.length === 0 && (
-              <div className="empty-state">
-                <div className="empty-state-icon">
-                  <FolderOpenIcon />
-                </div>
-                <div className="empty-state-title">No applications yet</div>
-                <p className="empty-state-sub">
-                  Add your first application manually or connect Gmail to automatically import
-                  from your inbox.
-                </p>
-                <button type="button" className="btn-primary" onClick={focusAddApplicationForm}>
-                  Add your first application
-                </button>
-              </div>
-            )}
-
-            {!error && applications.length > 0 && visible.length === 0 && (
-              <p className="muted" style={{ textAlign: 'center', padding: '2.5rem 0' }}>
-                No applications with status &ldquo;{statusFilter}&rdquo;.
-              </p>
-            )}
-
-            {!error && visible.length > 0 && (
-              <div className="applications-panel-scroll">
-                <table className="applications-table">
-                  <thead>
-                    <tr>
-                      <th>Company / Role</th>
-                      <th>Date applied</th>
-                      <th>Notes</th>
-                      <th>Status</th>
-                      <th>Source</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visible.map((app) => (
-                      <ApplicationItem
-                        key={app.id}
-                        app={app}
-                        onStatusChange={handleStatusChange}
-                        onDelete={handleDelete}
-                        onSaveNotes={handleSaveNotes}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <div className="stat-value">{counts.interviewing || 0}</div>
+          <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={SPARK_POINTS[0]} />
+          </svg>
+        </div>
+        <div className="stat-card stat-offer">
+          <div className="stat-card-head">
+            <span className="stat-label">Offers</span>
+            <span className="stat-icon-badge">
+              <BadgeCheckIcon />
+            </span>
           </div>
-        </main>
+          <div className="stat-value">{(counts.offer || 0) + (counts.accepted || 0)}</div>
+          <svg className="stat-spark" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={SPARK_POINTS[1]} />
+          </svg>
+        </div>
       </div>
-    </div>
+
+      <div className="panels-row">
+        {/* Add an application */}
+        <div className="panel-card">
+          <div className="panel-title">Add an application</div>
+          <p className="panel-subtitle">Manually add a job to keep your search organized.</p>
+          <form className="add-app-form" onSubmit={handleCreate}>
+            <div>
+              <label className="field-label" htmlFor="add-company">
+                Company name
+              </label>
+              <input
+                id="add-company"
+                ref={companyInputRef}
+                placeholder="e.g. Linear"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="add-role">
+                Role
+              </label>
+              <input
+                id="add-role"
+                placeholder="e.g. Product Designer"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                required
+              />
+            </div>
+            <button type="submit" className="btn-primary btn-add-application" disabled={creating}>
+              {creating ? (
+                'Adding...'
+              ) : (
+                <>
+                  Add application <PlusIcon />
+                </>
+              )}
+            </button>
+            {formError && <span className="error">{formError}</span>}
+          </form>
+        </div>
+
+        <ReviewQueue
+          candidates={candidates}
+          loading={candidatesLoading}
+          syncing={syncing}
+          error={candidatesError}
+          onSync={handleSyncGmail}
+          onAccept={handleAcceptCandidate}
+          onDismiss={handleDismissCandidate}
+        />
+      </div>
+
+      {/* Your applications */}
+      <div className="panel-card">
+        <div className="panel-head-row">
+          <span className="panel-title">Your applications</span>
+          <Link to="/applications" className="panel-link">
+            View all →
+          </Link>
+        </div>
+        <div className="filter-row">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All statuses</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <span>{visible.length} results</span>
+        </div>
+
+        {/* loading only gates the FIRST load's placeholder text -- once
+            there's data, later refetches (e.g. after saving notes or
+            changing a status) must not unmount the table, or every
+            ApplicationItem loses its local state (an open notes drawer,
+            mid-edit text) on every save. */}
+        {loading && applications.length === 0 && <p className="muted">Loading...</p>}
+        {error && <p className="error">{error}</p>}
+
+        {!error && !loading && applications.length === 0 && (
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <FolderOpenIcon />
+            </div>
+            <div className="empty-state-title">No applications yet</div>
+            <p className="empty-state-sub">
+              Add your first application manually or connect Gmail to automatically import from
+              your inbox.
+            </p>
+            <button type="button" className="btn-primary" onClick={focusAddApplicationForm}>
+              Add your first application
+            </button>
+          </div>
+        )}
+
+        {!error && applications.length > 0 && visible.length === 0 && (
+          <p className="muted" style={{ textAlign: 'center', padding: '2.5rem 0' }}>
+            No applications with status &ldquo;{statusFilter}&rdquo;.
+          </p>
+        )}
+
+        {!error && visible.length > 0 && (
+          <div className="applications-panel-scroll">
+            <table className="applications-table">
+              <thead>
+                <tr>
+                  <th>Company / Role</th>
+                  <th>Date applied</th>
+                  <th>Notes</th>
+                  <th>Status</th>
+                  <th>Source</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((app) => (
+                  <ApplicationItem
+                    key={app.id}
+                    app={app}
+                    onStatusChange={handleStatusChange}
+                    onDelete={handleDelete}
+                    onSaveNotes={handleSaveNotes}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </AppShell>
   );
 }
 

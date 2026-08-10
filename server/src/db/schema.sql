@@ -126,3 +126,28 @@ CREATE TABLE IF NOT EXISTS candidates (
 -- ever missing or unparseable.
 ALTER TABLE candidates
   ADD COLUMN email_date DATE NULL;
+
+-- ---------------------------------------------------------------------------
+-- reminders: user-created follow-up nudges, optionally tied to a specific
+-- application ("Follow up on Monzo application"). Standalone reminders
+-- (application_id NULL) are also allowed -- not every reminder is about a
+-- specific role. If the linked application is later deleted, the reminder
+-- survives but un-links (ON DELETE SET NULL) rather than disappearing --
+-- deleting an application shouldn't silently delete an unrelated reminder.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS reminders (
+  id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id         INT UNSIGNED NOT NULL,
+  application_id  INT UNSIGNED,
+  title           VARCHAR(255) NOT NULL,
+  due_date        DATE NOT NULL,
+  done            TINYINT(1) NOT NULL DEFAULT 0,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  KEY idx_reminders_user_due (user_id, due_date),
+  CONSTRAINT fk_reminders_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_reminders_application
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE SET NULL
+) ENGINE=InnoDB;

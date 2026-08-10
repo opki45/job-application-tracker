@@ -51,4 +51,23 @@ function validateApplication(body = {}, { partial = false } = {}) {
   return errors;
 }
 
-module.exports = { validateRegister, validateApplication, VALID_STATUSES };
+// Same partial-on-update pattern as validateApplication above.
+function validateReminder(body = {}, { partial = false } = {}) {
+  const errors = [];
+  const present = (field) =>
+    body[field] !== undefined && body[field] !== null && String(body[field]).trim() !== '';
+
+  if (!partial || body.title !== undefined) {
+    if (!present('title')) errors.push('title is required');
+  }
+  if (!partial || body.due_date !== undefined) {
+    if (!present('due_date')) errors.push('due_date is required');
+    else if (!DATE_RE.test(body.due_date)) errors.push('due_date must be in YYYY-MM-DD format');
+  }
+  if (body.done !== undefined && typeof body.done !== 'boolean') {
+    errors.push('done must be a boolean');
+  }
+  return errors;
+}
+
+module.exports = { validateRegister, validateApplication, validateReminder, VALID_STATUSES };

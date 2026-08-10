@@ -121,3 +121,138 @@ describe('GET /api/auth/me (protected)', () => {
     expect(res.body.user.password_hash).toBeUndefined();
   });
 });
+
+describe('PUT /api/auth/password', () => {
+  async function registerAndLogin(email = 'dayo@example.com', password = 'password123') {
+    await request(app).post('/api/auth/register').send({ email, password });
+    const login = await request(app).post('/api/auth/login').send({ email, password });
+    return login.body.token;
+  }
+
+  test('returns 401 with no token', async () => {
+    const res = await request(app)
+      .put('/api/auth/password')
+      .send({ currentPassword: 'password123', newPassword: 'newpassword456' });
+    expect(res.status).toBe(401);
+  });
+
+  test('changes the password when the current one is correct', async () => {
+    const token = await registerAndLogin();
+
+    const res = await request(app)
+      .put('/api/auth/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'password123', newPassword: 'newpassword456' });
+    expect(res.status).toBe(204);
+
+    // Old password no longer works, new one does.
+    const oldLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'dayo@example.com', password: 'password123' });
+    expect(oldLogin.status).toBe(401);
+
+    const newLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'dayo@example.com', password: 'newpassword456' });
+    expect(newLogin.status).toBe(200);
+  });
+
+  test('rejects with 401 when currentPassword is wrong (a valid token alone is not enough)', async () => {
+    const token = await registerAndLogin();
+
+    const res = await request(app)
+      .put('/api/auth/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'wrongpassword', newPassword: 'newpassword456' });
+    expect(res.status).toBe(401);
+
+    // The password must be genuinely unchanged.
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'dayo@example.com', password: 'password123' });
+    expect(login.status).toBe(200);
+  });
+
+  test('rejects a new password shorter than 8 characters with 400', async () => {
+    const token = await registerAndLogin();
+
+    const res = await request(app)
+      .put('/api/auth/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'password123', newPassword: 'short' });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('DELETE /api/auth/me', () => {
+  async function registerAndLogin(email = 'dayo@example.com', password = 'password123') {
+    await request(app).post('/api/auth/register').send({ email, password });
+    const login = await request(app).post('/api/auth/login').send({ email, password });
+    return login.body.token;
+  }
+
+  test('returns 401 with no token', async () => {
+    const res = await request(app).delete('/api/auth/me').send({ password: 'password123' });
+    expect(res.status).toBe(401);
+  });
+
+  test('rejects with 401 when the password is wrong, and the account survives', async () => {
+    const token = await registerAndLogin();
+
+    const res = await request(app)
+      .delete('/api/auth/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ password: 'wrongpassword' });
+    expect(res.status).toBe(401);
+
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'dayo@example.com', password: 'password123' });
+    expect(login.status).toBe(200);
+  });
+
+  test('deletes the account with the correct password, and it can no longer log in', async () => {
+    const token = await registerAndLogin();
+
+    const res = await request(app)
+      .delete('/api/auth/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ password: 'password123' });
+    expect(res.status).toBe(204);
+
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'dayo@example.com', password: 'password123' });
+    expect(login.status).toBe(401);
+  });
+
+  test('cascades: deleting the account also removes its applications', async () => {
+    const token = await registerAndLogin();
+    await request(app)
+      .post('/api/applications')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ company: 'Monzo', role: 'Graduate Engineer' });
+
+    await request(app)
+      .delete('/api/auth/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ password: 'password123' });
+
+    // A fresh account with the same email can register again -- proves the
+    // old user row (and its unique-email constraint) is really gone.
+    const reRegister = await request(app)
+      .post('/api/auth/register')
+      .send({ email: 'dayo@example.com', password: 'password123' });
+    expect(reRegister.status).toBe(201);
+
+    const newLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'dayo@example.com', password: 'password123' });
+    const list = await request(app)
+      .get('/api/applications')
+      .set('Authorization', `Bearer ${newLogin.body.token}`);
+    // The new account (same email, different id) has no applications --
+    // the old user's Monzo application didn't survive under a stale id.
+    expect(list.body.applications).toHaveLength(0);
+  });
+});

@@ -1,21 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import CompanyLogo from './CompanyLogo';
 import { NoteIcon, DotsHorizontalIcon, GmailIcon } from './icons';
+import { formatDate } from '../utils/formatDate';
 
 const STATUSES = ['applied', 'interviewing', 'offer', 'rejected', 'accepted'];
-
-// app.date_applied is a "YYYY-MM-DD" string (dateStrings:true on the pool).
-// I build the Date from its parts rather than `new Date(dateString)` --
-// the latter parses as UTC midnight, which can display as the PREVIOUS day
-// once toLocaleDateString renders it in a timezone behind UTC.
-function formatDate(dateStr) {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
 
 // One row in the applications table (plus a second, conditional row directly
 // below it holding the notes editor when expanded -- a <tr> is the only way

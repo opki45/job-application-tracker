@@ -17,9 +17,13 @@ This is a monorepo: the Express API lives in `server/`, the React app in `client
 
 ## Features
 
-- **Authentication** — register, log in, and protected routes using JSON Web Tokens; sessions persist across refreshes.
-- **Application tracking** — full CRUD for applications (company, role, status, date, job description, notes).
+- **Authentication** — register, log in, and protected routes using JSON Web Tokens; sessions persist across refreshes. Full account management too: change password, delete account (both re-verify the current password even though the request is already authenticated).
+- **Application tracking** — full CRUD for applications (company, role, status, date, job description, notes), plus a dedicated Applications page with search, sortable columns, and real backend pagination.
 - **Dashboard** — summary stats, status filtering, and rows colour-coded by status so you can scan at a glance.
+- **Gmail auto-import** — connect Gmail, and an LLM extracts job-application emails into a review queue; nothing touches your tracked applications until you accept it (see the Phase 2 section below).
+- **Calendar** — a month view of every application plotted on its date applied, colour-coded by status.
+- **Analytics** — a status funnel, an applications-over-time trend, and a Gmail-vs-manual breakdown, all derived from data you already have (no separate tracking).
+- **Reminders** — follow-up nudges, optionally linked to a specific application; survive if that application is later deleted (they just unlink).
 - **Notes** — expandable per-application notes for recruiter names, next steps, and interview dates.
 - **Company logos** — each application shows the real company logo, with a coloured initial as a fallback.
 - **Per-user isolation** — every application is scoped to its owner; you only ever see your own data.
@@ -45,8 +49,8 @@ server/                     Express API
     db/                     mysql2 pool + schema.sql
     middleware/             JWT auth, central error handler
     models/                 all SQL lives here (user-scoped)
-    controllers/            register / login / applications CRUD / Gmail integration + sync
-    routes/                 auth + application + integration + sync routes
+    controllers/            auth / applications CRUD+pagination / Gmail integration + sync / reminders
+    routes/                 auth + application + integration + sync + candidate + reminder routes
     integrations/           Gmail/Google API boundary modules (mocked in tests)
     utils/                  request validation, token encryption, email prefilter
   tests/                    Jest + Supertest integration tests
@@ -55,9 +59,11 @@ client/                     React app (Vite)
   src/
     api.js                  fetch wrapper (attaches JWT, parses errors)
     AuthContext.jsx         auth state + token persistence
+    GmailContext.jsx        Gmail connection status, shared across pages
     ProtectedRoute.jsx      redirects if not logged in
-    pages/                  Login, Register, Dashboard
-    components/             Logo, ApplicationItem, AuthLayout, ProductPreview, GmailConnect, ReviewQueue
+    pages/                  Login, Register, Dashboard, Applications, Calendar, Analytics, Reminders, Settings
+    components/             AppShell (topbar+sidebar shell), Sidebar, GmailConnect, ReviewQueue,
+                             ApplicationItem, CompanyLogo, Logo, AuthLayout, ProductPreview
 ```
 
 ## Design decisions (and why)
@@ -128,9 +134,19 @@ Full build spec: [`docs/PHASE2.md`](docs/PHASE2.md). Connect Gmail (read-only), 
 
 **Known gaps / next hardening pass:** no pagination on `GET /api/candidates`; no rate limit on `POST /api/sync/gmail` (a user could trigger repeated syncs back to back); company/role matching is exact-after-normalization, not fuzzy, so a genuinely different-looking company name for the same employer won't reconcile.
 
+## Beyond Phase 2: a real sidebar, not placeholders
+
+The dashboard's sidebar originally had nav items with nowhere to go (Applications, Calendar, Analytics, Reminders, Settings — decorative, by explicit choice at the time). All five are now real pages:
+
+- **Applications** — the full list with search, sortable columns, and real backend pagination (`GET /api/applications?page=`), not just the dashboard's unpaginated summary table.
+- **Calendar** — a month view plotting every application on its `date_applied`, colour-coded by status. No new backend — derived from data already there.
+- **Analytics** — a status funnel, an applications-over-time trend, and a Gmail-vs-manual split. Also fully derived from existing data; colours reuse the app's one reserved status palette (validated colourblind-safe via the dataviz skill's validator, not eyeballed).
+- **Reminders** — a genuinely new feature: its own table, optionally linked to a specific application (`ON DELETE SET NULL` if that application is later deleted, so the reminder survives).
+- **Settings** — Gmail connect/disconnect (moved here too, shared via `GmailContext` instead of re-fetched per page), change password, delete account (password + typed "DELETE" confirmation; cascades via the existing `ON DELETE CASCADE` foreign keys), and a decorative light/dark/system theme picker (no real dark theme exists yet).
+
 ## Roadmap
 
 - Deploy (frontend host + backend host + cloud MySQL)
-- Pagination on the applications list
 - Rate limiting on login and a security-header layer
+- A real dark theme (the picker in Settings and the sidebar toggle are both decorative right now)
 - Later phase: RAG / evaluation harnesses

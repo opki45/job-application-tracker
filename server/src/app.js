@@ -6,6 +6,7 @@ const applicationRoutes = require('./routes/applicationRoutes');
 const integrationRoutes = require('./routes/integrationRoutes');
 const syncRoutes = require('./routes/syncRoutes');
 const candidateRoutes = require('./routes/candidateRoutes');
+const reminderRoutes = require('./routes/reminderRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 // I build the app here but I DON'T start it listening. server.js does that.
@@ -46,6 +47,9 @@ app.use('/api/sync/gmail', syncRoutes);
 
 // Review-queue routes (list/accept/dismiss candidates), mounted under /api/candidates.
 app.use('/api/candidates', candidateRoutes);
+
+// Reminder routes, mounted under /api/reminders.
+app.use('/api/reminders', reminderRoutes);
 
 // My error handler goes LAST, so it can catch errors from any route above it.
 app.use(errorHandler);

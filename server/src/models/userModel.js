@@ -35,4 +35,36 @@ async function findUserById(id) {
   return rows[0] || null;
 }
 
-module.exports = { createUser, findUserByEmail, findUserById };
+// Like findUserById, but includes password_hash -- used for the change-
+// password and delete-account flows, which both need to re-verify the
+// user's CURRENT password before acting (a valid JWT alone isn't proof of
+// the password; the token could be hours old). Same care as
+// findUserByEmail: never send this object straight back to the client.
+async function findUserByIdWithPassword(id) {
+  const [rows] = await pool.execute(
+    'SELECT id, email, password_hash FROM users WHERE id = ?',
+    [id]
+  );
+  return rows[0] || null;
+}
+
+async function updatePassword(id, passwordHash) {
+  await pool.execute('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id]);
+}
+
+// Every other table (applications, candidates, oauth_accounts,
+// processed_emails, reminders) has ON DELETE CASCADE back to users, so
+// deleting the user row is enough to take everything else with it -- no
+// manual cleanup needed here.
+async function deleteUser(id) {
+  await pool.execute('DELETE FROM users WHERE id = ?', [id]);
+}
+
+module.exports = {
+  createUser,
+  findUserByEmail,
+  findUserById,
+  findUserByIdWithPassword,
+  updatePassword,
+  deleteUser,
+};

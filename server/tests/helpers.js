@@ -12,6 +12,7 @@ async function resetDatabase() {
   await pool.query('TRUNCATE TABLE candidates');
   await pool.query('TRUNCATE TABLE processed_emails');
   await pool.query('TRUNCATE TABLE oauth_accounts');
+  await pool.query('TRUNCATE TABLE reminders');
   await pool.query('TRUNCATE TABLE applications');
   await pool.query('TRUNCATE TABLE users');
   await pool.query('SET FOREIGN_KEY_CHECKS = 1');

@@ -94,4 +94,56 @@ async function me(req, res, next) {
   }
 }
 
-module.exports = { register, login, me };
+// PUT /api/auth/password (protected)
+// A valid JWT alone isn't proof the requester still knows the password --
+// the token could be hours old and the tab left open on a shared machine --
+// so I re-verify currentPassword before ever touching the stored hash.
+async function changePassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!newPassword || String(newPassword).length < 8) {
+      return res.status(400).json({ errors: ['New password must be at least 8 characters'] });
+    }
+
+    const user = await userModel.findUserByIdWithPassword(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const match = await bcrypt.compare(currentPassword || '', user.password_hash);
+    if (!match) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await userModel.updatePassword(req.user.id, passwordHash);
+    return res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/auth/me (protected)
+// Same re-verification reasoning as changePassword: deleting an account is
+// irreversible (every application, candidate, and OAuth token cascades away
+// with it), so a password confirmation is required, not just a valid token.
+async function deleteAccount(req, res, next) {
+  try {
+    const user = await userModel.findUserByIdWithPassword(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const match = await bcrypt.compare(req.body.password || '', user.password_hash);
+    if (!match) {
+      return res.status(401).json({ error: 'Password is incorrect' });
+    }
+
+    await userModel.deleteUser(req.user.id);
+    return res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { register, login, me, changePassword, deleteAccount };

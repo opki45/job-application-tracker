@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+import { useGmail } from '../GmailContext';
 
 // Small widget: shows whether Gmail is connected and lets the user
-// connect/disconnect. Connection status itself is owned by Dashboard (not
-// this component) so ReviewQueue can also read it -- e.g. to tell a
-// connected-but-empty queue apart from a not-yet-connected one.
-function GmailConnect({ connected, loading, onConnectedChange }) {
+// connect/disconnect. Connection status itself lives in GmailContext (not
+// this component's own state) so every place that needs it -- the topbar,
+// the review queue's empty-state copy, Settings -- shares one source of
+// truth instead of independently fetching and possibly disagreeing.
+function GmailConnect() {
+  const { connected, loading, setConnected, refresh } = useGmail();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // Set once, from the ?gmail=... param the OAuth callback redirects back
@@ -13,7 +16,10 @@ function GmailConnect({ connected, loading, onConnectedChange }) {
   const [callbackMessage, setCallbackMessage] = useState('');
 
   // Read the callback result out of the URL once, then strip it so a refresh
-  // doesn't keep re-showing it.
+  // doesn't keep re-showing it. Also re-pull real status from the server --
+  // the redirect landed on a fresh page load, but GmailContext may have
+  // already fetched (and cached "not connected") before this connect
+  // attempt finished.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const result = params.get('gmail');
@@ -22,9 +28,11 @@ function GmailConnect({ connected, loading, onConnectedChange }) {
     setCallbackMessage(
       result === 'connected' ? 'Gmail connected.' : "Couldn't connect Gmail. Please try again."
     );
+    if (result === 'connected') refresh();
     params.delete('gmail');
     const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`;
     window.history.replaceState({}, '', next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleConnect() {
@@ -47,7 +55,7 @@ function GmailConnect({ connected, loading, onConnectedChange }) {
     setError('');
     try {
       await api.del('/integrations/gmail');
-      onConnectedChange(false);
+      setConnected(false);
     } catch (err) {
       setError(err.message);
     } finally {

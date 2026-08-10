@@ -48,18 +48,21 @@ src/
     oauthAccountModel.js     # SQL for oauth_accounts (encrypted tokens)
     processedEmailModel.js   # SQL for processed_emails (Gmail sync dedupe)
     candidateModel.js        # SQL for candidates (review queue)
+    reminderModel.js         # SQL for reminders (optionally linked to an application)
   controllers/
-    authController.js        # register / login / me
-    applicationController.js # CRUD + filtering
+    authController.js        # register / login / me / change password / delete account
+    applicationController.js # CRUD + filtering + search/sort/pagination
     integrationController.js # Gmail OAuth connect/callback/status/disconnect
     syncController.js        # POST /api/sync/gmail (fetch/prefilter/extract pipeline)
     candidateController.js   # review queue: list / accept / dismiss
+    reminderController.js    # reminders: list / create / update / delete
   routes/
     authRoutes.js
     applicationRoutes.js
     integrationRoutes.js
     syncRoutes.js
     candidateRoutes.js
+    reminderRoutes.js
   integrations/
     googleClient.js          # OAuth boundary (auth URL, code exchange, revoke)
     gmailClient.js            # Gmail API boundary (list/get messages, message bodies)
@@ -80,9 +83,12 @@ tests/
   extractApplication.test.js
   candidates.test.js
   reconcile.test.js
+  reminders.test.js
 ```
 
 Phase 2 (Gmail auto-import) is feature-complete per [`../docs/PHASE2.md`](../docs/PHASE2.md)'s build order — OAuth, the fetch → prefilter → LLM extract → reconcile pipeline, and the review queue (accept/dismiss) are all built and verified end to end against a real Gmail inbox, real applications, and both real LLM providers.
+
+Beyond Phase 2: the dashboard's sidebar now links to real pages, not placeholders — full applications search/sort/pagination, a calendar view, analytics derived from existing data, a full reminders feature (new table, optionally linked to an application), and account settings (Gmail connect, change password, delete account).
 
 ## Getting started
 
@@ -157,18 +163,25 @@ All responses are JSON. Protected endpoints require `Authorization: Bearer <toke
 | POST   | `/api/auth/register` | –    | `{ email, password }` | `201 { user }`         |
 | POST   | `/api/auth/login`    | –    | `{ email, password }` | `200 { user, token }`  |
 | GET    | `/api/auth/me`       | ✅   | –                     | `200 { user }`         |
+| PUT    | `/api/auth/password` | ✅   | `{ currentPassword, newPassword }` | `204`      |
+| DELETE | `/api/auth/me`       | ✅   | `{ password }`        | `204`                   |
 
 `password` must be at least 8 characters. Duplicate email → `409`. Bad credentials → `401`.
+
+Both `password` endpoints re-verify the CURRENT password before acting, even though the request is already authenticated -- a valid JWT alone isn't proof you still know the password (the token could be hours old, the tab left open). Wrong current/confirmation password → `401`. Deleting cascades to every other table (applications, candidates, reminders, oauth_accounts, processed_emails) via `ON DELETE CASCADE` -- no manual cleanup needed.
 
 ### Applications
 
 | Method | Path                    | Auth | Body / Query                  | Success                 |
 |--------|-------------------------|------|-------------------------------|-------------------------|
 | GET    | `/api/applications`     | ✅   | `?status=<status>` (optional) | `200 { applications }`  |
+| GET    | `/api/applications?page=1` | ✅ | see below                    | `200 { applications, total, page, pageSize }` |
 | POST   | `/api/applications`     | ✅   | see fields below              | `201 { application }`   |
 | GET    | `/api/applications/:id` | ✅   | –                             | `200 { application }`   |
 | PUT    | `/api/applications/:id` | ✅   | any subset of fields          | `200 { application }`   |
 | DELETE | `/api/applications/:id` | ✅   | –                             | `204` (no body)         |
+
+`page` is what switches the response shape. Without it: the plain `{ applications }` array the dashboard's summary table and the sync pipeline's reconciliation matching both expect (reconciliation needs the user's FULL set to match against, not one page). With it: `?page=1&pageSize=20&search=&sort=date_applied|company|role|status&order=asc|desc` -- `search` matches company or role (case-insensitive substring), `sort`/`order` default to `date_applied`/`desc` and silently fall back on an unrecognized value rather than erroring (it only affects display order).
 
 **Application fields**
 
@@ -212,6 +225,17 @@ Requesting an application that doesn't exist, or that belongs to another user, r
 
 Once a candidate is accepted or dismissed it's gone from `GET /api/candidates` for good -- there's no path back to pending.
 
+### Reminders
+
+| Method | Path                  | Auth | Body                                          | Success            |
+|--------|-----------------------|------|------------------------------------------------|---------------------|
+| GET    | `/api/reminders`      | ✅   | –                                              | `200 { reminders }` |
+| POST   | `/api/reminders`      | ✅   | `{ title, due_date, application_id? }`         | `201 { reminder }`  |
+| PUT    | `/api/reminders/:id`  | ✅   | any subset of `{ title, due_date, done, application_id }` | `200 { reminder }` |
+| DELETE | `/api/reminders/:id`  | ✅   | –                                              | `204`                |
+
+`application_id` is optional -- a reminder can stand alone or reference a specific application, which is returned inlined as `application_company`/`application_role` (one query, not a second round trip). If given, the application must belong to the requesting user or the request `404`s (same "don't leak existence" rule as everywhere else). If that application is later deleted, the reminder survives with `application_id` set back to `null` (`ON DELETE SET NULL`) rather than being deleted itself -- deleting an application shouldn't silently delete an unrelated reminder. `GET` returns not-done reminders first, soonest due date first.
+
 ### Example
 
 ```bash
@@ -235,6 +259,5 @@ curl -X POST http://localhost:3000/api/applications \
 ## Roadmap
 
 - Phase 2 hardening: pagination on `/api/candidates`, rate limiting on `/api/sync/gmail`, fuzzier company/role matching in `src/reconcile.js`
-- Pagination on the applications list
 - Rate limiting on login and a CORS/security-header layer
 - Later phase: RAG / evaluation harnesses

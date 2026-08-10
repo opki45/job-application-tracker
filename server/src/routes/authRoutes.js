@@ -16,4 +16,11 @@ router.post('/login', authController.login);
 // controller if the token is valid.
 router.get('/me', authenticate, authController.me);
 
+// PUT /password -> change password (requires the current one). Protected.
+router.put('/password', authenticate, authController.changePassword);
+
+// DELETE /me -> delete my account (requires the current password).
+// Protected. Cascades to every other table via ON DELETE CASCADE.
+router.delete('/me', authenticate, authController.deleteAccount);
+
 module.exports = router;
