@@ -13,7 +13,7 @@ Landed is a full-stack web app for tracking job applications through their lifec
 | Database  | MySQL (raw SQL via `mysql2`, no ORM)                         |
 | Testing   | Jest + Supertest (backend integration tests)                |
 
-This is a monorepo: the Express API lives in `server/`, the React app in `client/`.
+This is a monorepo: the Express API lives in `server/`, the React web app in `client/`, and a React Native companion app (Expo Go) lives in `mobile/` — see [`mobile/README.md`](mobile/README.md). The mobile app is the same backend, same account, no server changes needed; it covers login, the home dashboard, the full applications list, and the Gmail review queue (Calendar/Analytics/Reminders/Settings are web-only for now).
 
 ## Features
 
@@ -64,6 +64,10 @@ client/                     React app (Vite)
     pages/                  Login, Register, Dashboard, Applications, Calendar, Analytics, Reminders, Settings
     components/             AppShell (topbar+sidebar shell), Sidebar, GmailConnect, ReviewQueue,
                              ApplicationItem, CompanyLogo, Logo, AuthLayout, ProductPreview
+
+mobile/                     React Native app (Expo Router) — same backend, no server changes needed
+  app/                       file-based routes: login, register, (tabs) group
+  src/                       api.js, AuthContext, GmailContext, theme, shared components
 ```
 
 ## Design decisions (and why)
@@ -144,9 +148,14 @@ The dashboard's sidebar originally had nav items with nowhere to go (Application
 - **Reminders** — a genuinely new feature: its own table, optionally linked to a specific application (`ON DELETE SET NULL` if that application is later deleted, so the reminder survives).
 - **Settings** — Gmail connect/disconnect (moved here too, shared via `GmailContext` instead of re-fetched per page), change password, delete account (password + typed "DELETE" confirmation; cascades via the existing `ON DELETE CASCADE` foreign keys), and a decorative light/dark/system theme picker (no real dark theme exists yet).
 
+## Mobile (Expo Go)
+
+A React Native companion app lives in [`mobile/`](mobile/README.md) — login, home dashboard, full applications list, and the Gmail review queue, all against the same backend with no server changes. See that README for setup (you'll need your dev machine's LAN IP so a phone can reach the API) and the honest trade-off on how Gmail connect works there (opens the existing web OAuth flow in the system browser; no native deep-link back into the app yet).
+
 ## Roadmap
 
 - Deploy (frontend host + backend host + cloud MySQL)
 - Rate limiting on login and a security-header layer
 - A real dark theme (the picker in Settings and the sidebar toggle are both decorative right now)
+- Mobile: Calendar/Analytics/Reminders/Settings screens, a native deep-link back from the Gmail OAuth browser flow
 - Later phase: RAG / evaluation harnesses
