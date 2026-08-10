@@ -570,6 +570,11 @@ button:disabled {
   font-size: 0.82rem;
   white-space: nowrap;
 }
+.candidate-update-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
 
 /* List header + filter */
 .list-head {

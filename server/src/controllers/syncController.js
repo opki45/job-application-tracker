@@ -2,9 +2,11 @@ const gmailClient = require('../integrations/gmailClient');
 const oauthAccountModel = require('../models/oauthAccountModel');
 const processedEmailModel = require('../models/processedEmailModel');
 const candidateModel = require('../models/candidateModel');
+const applicationModel = require('../models/applicationModel');
 const tokenCrypto = require('../utils/tokenCrypto');
 const { isLikelyJobRelated } = require('../utils/emailPrefilter');
 const { extractApplication } = require('../llm/extractApplication');
+const { findMatchingApplication, isForwardMove } = require('../reconcile');
 
 const PROVIDER = 'google';
 
@@ -36,17 +38,25 @@ function makeTokenRefreshHandler(userId) {
   };
 }
 
-// Runs the LLM step for one shortlisted message and reconciles the result:
+// Runs the LLM step for one shortlisted message and reconciles the result
+// against the user's existing applications (docs/PHASE2.md's "Reconcile"
+// step):
 //   - not job-related (per the LLM, not the prefilter) -> mark processed, drop.
-//   - job-related -> create a candidate (matching against existing
-//     applications is reconciliation, a later step -- for now every
-//     job-related extraction is a new candidate) and mark processed.
+//   - job-related, no matching application (normalized company + role) ->
+//     create a candidate proposing a NEW application.
+//   - job-related, matches an application, and the extracted status is a
+//     forward move (applied < interviewing < offer/rejected < accepted) ->
+//     create a candidate with matched_application_id set, proposing a
+//     status update.
+//   - job-related, matches an application, but NOT a forward move (same
+//     stage restated, or a status this ordering can't place) -> nothing to
+//     propose. Mark processed, drop.
 // IMPORTANT: an infrastructure failure (Ollama down, bad response) is left
 // UNprocessed on purpose -- see the note on extractApplication() for why:
 // "couldn't reach the LLM" must never be recorded the same way as "the LLM
 // looked at this and it's not job-related", or a temporary outage would
 // permanently drop mail that was never actually evaluated.
-async function processShortlistedMessage(userId, gmail, summary) {
+async function processShortlistedMessage(userId, gmail, summary, existingApplications) {
   let extraction;
   try {
     const body = await gmailClient.getMessageBody(gmail, summary.id);
@@ -62,12 +72,26 @@ async function processShortlistedMessage(userId, gmail, summary) {
     return { candidateCreated: false };
   }
 
+  const matched = findMatchingApplication(existingApplications, {
+    company: extraction.company,
+    role: extraction.role,
+  });
+
+  if (matched && !isForwardMove(matched.status, extraction.status)) {
+    // Matches something the user already has, but doesn't move it forward
+    // (a re-confirmation of the same stage, or a status this ordering can't
+    // place). Nothing new to propose.
+    await processedEmailModel.markProcessed(userId, summary.id);
+    return { candidateCreated: false };
+  }
+
   await candidateModel.createCandidate(userId, {
     sourceMessageId: summary.id,
     company: extraction.company,
     role: extraction.role,
     status: extraction.status,
     confidence: extraction.confidence,
+    matchedApplicationId: matched ? matched.id : null,
   });
   await processedEmailModel.markProcessed(userId, summary.id);
   return { candidateCreated: true };
@@ -75,11 +99,11 @@ async function processShortlistedMessage(userId, gmail, summary) {
 
 // POST /api/sync/gmail (protected)
 //
-// Steps 2-3 of the pipeline in docs/PHASE2.md: list recent messages, skip
-// ones already seen, prefilter the rest, then run the LLM on whatever passed
-// the prefilter and write a candidate for anything it says is job-related.
-// Matching against existing applications (reconciliation) isn't built yet --
-// every job-related extraction becomes a new candidate for now.
+// The full pipeline from docs/PHASE2.md: list recent messages, skip ones
+// already seen, prefilter the rest, run the LLM on whatever passed, and
+// reconcile each job-related result against the user's existing
+// applications (new candidate vs. status-update candidate vs. nothing to
+// propose -- see processShortlistedMessage above).
 async function syncGmail(req, res, next) {
   try {
     const userId = req.user.id;
@@ -95,6 +119,11 @@ async function syncGmail(req, res, next) {
       onTokensRefreshed: makeTokenRefreshHandler(userId),
     });
 
+    // Loaded once per sync, not per message -- nothing in this run writes to
+    // applications (that only happens later, when a candidate is accepted),
+    // so the set of existing applications can't change mid-sync.
+    const existingApplications = await applicationModel.findApplications(userId);
+
     const messageIds = await gmailClient.listMessageIds(gmail);
     const unseenIds = await processedEmailModel.filterUnprocessed(userId, messageIds);
 
@@ -108,7 +137,12 @@ async function syncGmail(req, res, next) {
         continue;
       }
       shortlistedCount += 1;
-      const { candidateCreated } = await processShortlistedMessage(userId, gmail, summary);
+      const { candidateCreated } = await processShortlistedMessage(
+        userId,
+        gmail,
+        summary,
+        existingApplications
+      );
       if (candidateCreated) candidatesCreated += 1;
     }
 

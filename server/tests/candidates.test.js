@@ -146,6 +146,92 @@ describe('POST /api/candidates/:id/accept', () => {
   });
 });
 
+describe('POST /api/candidates/:id/accept (matched -- status-update candidate)', () => {
+  async function seedApplication(token, overrides = {}) {
+    const res = await request(app)
+      .post('/api/applications')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ company: 'Monzo', role: 'Graduate Software Engineer', status: 'applied', ...overrides });
+    return res.body.application;
+  }
+
+  test('advances the matched application\'s status instead of creating a new one', async () => {
+    const { token, userId } = await createUser();
+    const application = await seedApplication(token);
+    const candidate = await seedCandidate(userId, {
+      status: 'interviewing',
+      matchedApplicationId: application.id,
+    });
+
+    const res = await request(app)
+      .post(`/api/candidates/${candidate.id}/accept`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.application.id).toBe(application.id);
+    expect(res.body.application.status).toBe('interviewing');
+    // Company/role are untouched -- they already matched.
+    expect(res.body.application.company).toBe('Monzo');
+
+    // Exactly one application still exists -- accept updated it, didn't add one.
+    const [appRows] = await pool.query('SELECT * FROM applications WHERE user_id = ?', [userId]);
+    expect(appRows).toHaveLength(1);
+  });
+
+  test('a status override in the request body wins over the candidate\'s extracted status', async () => {
+    const { token, userId } = await createUser();
+    const application = await seedApplication(token);
+    const candidate = await seedCandidate(userId, {
+      status: 'interviewing',
+      matchedApplicationId: application.id,
+    });
+
+    const res = await request(app)
+      .post(`/api/candidates/${candidate.id}/accept`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'offer' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.application.status).toBe('offer');
+  });
+
+  test('rejects an invalid status with 400', async () => {
+    const { token, userId } = await createUser();
+    const application = await seedApplication(token);
+    const candidate = await seedCandidate(userId, {
+      status: 'interviewing',
+      matchedApplicationId: application.id,
+    });
+
+    const res = await request(app)
+      .post(`/api/candidates/${candidate.id}/accept`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'ghosted' });
+
+    expect(res.status).toBe(400);
+  });
+
+  test('404s if the matched application was deleted since the candidate was created', async () => {
+    const { token, userId } = await createUser();
+    const application = await seedApplication(token);
+    const candidate = await seedCandidate(userId, {
+      status: 'interviewing',
+      matchedApplicationId: application.id,
+    });
+    await request(app)
+      .delete(`/api/applications/${application.id}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    const res = await request(app)
+      .post(`/api/candidates/${candidate.id}/accept`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('POST /api/candidates/:id/dismiss', () => {
   test('requires auth', async () => {
     const res = await request(app).post('/api/candidates/1/dismiss');

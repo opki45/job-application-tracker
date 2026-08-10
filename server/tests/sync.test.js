@@ -227,6 +227,69 @@ describe('POST /api/sync/gmail', () => {
     expect(gmailClient.getMessageSummary).not.toHaveBeenCalled();
   });
 
+  test('reconciliation: a forward status move on an existing application creates a matched candidate', async () => {
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+    await request(app)
+      .post('/api/applications')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ company: 'Some Company', role: 'Graduate Engineer', status: 'applied' });
+
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    gmailClient.listMessageIds.mockResolvedValue(['m1']);
+    gmailClient.getMessageSummary.mockResolvedValue(
+      summary('m1', { subject: 'Interview invitation from Some Company' })
+    );
+    gmailClient.getMessageBody.mockResolvedValue('We would like to invite you to interview...');
+    extractApplication.mockResolvedValue({ ...JOB_RELATED, status: 'interviewing', confidence: 0.85 });
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.candidates).toBe(1);
+
+    const [rows] = await pool.query('SELECT * FROM candidates WHERE user_id = ?', [userId]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].matched_application_id).not.toBeNull();
+    expect(rows[0].status).toBe('interviewing');
+
+    // The existing application itself is untouched by sync -- only accepting
+    // the candidate (a later step) writes to applications.
+    const [appRows] = await pool.query('SELECT status FROM applications WHERE user_id = ?', [userId]);
+    expect(appRows[0].status).toBe('applied');
+  });
+
+  test('reconciliation: a non-forward match (same stage restated) creates no candidate', async () => {
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+    await request(app)
+      .post('/api/applications')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ company: 'Some Company', role: 'Graduate Engineer', status: 'interviewing' });
+
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    gmailClient.listMessageIds.mockResolvedValue(['m1']);
+    gmailClient.getMessageSummary.mockResolvedValue(
+      summary('m1', { subject: 'Reminder: your interview with Some Company' })
+    );
+    gmailClient.getMessageBody.mockResolvedValue('Just a reminder about your upcoming interview...');
+    // Extraction re-states the SAME stage the application is already at.
+    extractApplication.mockResolvedValue({ ...JOB_RELATED, status: 'interviewing', confidence: 0.8 });
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.candidates).toBe(0);
+
+    const [rows] = await pool.query('SELECT * FROM candidates WHERE user_id = ?', [userId]);
+    expect(rows).toHaveLength(0);
+    // Still marked processed, even though no candidate was created -- I
+    // never want to re-evaluate the same message on the next sync.
+    const [processedRows] = await pool.query(
+      'SELECT gmail_message_id FROM processed_emails WHERE user_id = ?',
+      [userId]
+    );
+    expect(processedRows.map((r) => r.gmail_message_id)).toEqual(['m1']);
+  });
+
   test('persists a rotated access token when googleapis refreshes one mid-sync', async () => {
     const { token, userId } = await createUser();
     await connectGmail(userId);

@@ -65,6 +65,7 @@ src/
     gmailClient.js            # Gmail API boundary (list/get messages, message bodies)
   llm/
     extractApplication.js     # single adapter, dispatches to Ollama or Gemini
+  reconcile.js                # normalize/match/forward-move logic (pure, no SQL/HTTP)
   utils/
     validation.js            # request validation
     tokenCrypto.js            # AES-256-GCM encrypt/decrypt for stored tokens
@@ -78,9 +79,10 @@ tests/
   emailPrefilter.test.js
   extractApplication.test.js
   candidates.test.js
+  reconcile.test.js
 ```
 
-Phase 2 (Gmail auto-import) is in progress — see [`../docs/PHASE2.md`](../docs/PHASE2.md) for the full design. OAuth connect, the full fetch → prefilter → LLM extract → `candidates` pipeline, and the review queue (accept/dismiss) are built and verified end to end against a real Gmail inbox. Reconciliation (matching a candidate to an existing application instead of always creating a new one) is not yet.
+Phase 2 (Gmail auto-import) is feature-complete per [`../docs/PHASE2.md`](../docs/PHASE2.md)'s build order — OAuth, the fetch → prefilter → LLM extract → reconcile pipeline, and the review queue (accept/dismiss) are all built and verified end to end against a real Gmail inbox, real applications, and both real LLM providers.
 
 ## Getting started
 
@@ -191,7 +193,7 @@ Requesting an application that doesn't exist, or that belongs to another user, r
 | DELETE | `/api/integrations/gmail`         | ✅   | Revokes with Google and deletes stored tokens. `204`               |
 | POST   | `/api/sync/gmail`                 | ✅   | Runs the full fetch → prefilter → extract pipeline. `200 { scanned, shortlisted, candidates }`. `400` if Gmail isn't connected |
 
-`POST /api/sync/gmail` lists recent mail, skips anything already in `processed_emails`, prefilters with cheap heuristics, then runs the LLM (`src/llm/extractApplication.js`) on whatever passed and writes a `candidates` row for anything job-related. It doesn't write to `applications` yet — that happens when a candidate is accepted through the review queue, which isn't built yet. An LLM call that fails outright (provider down) intentionally leaves that message unprocessed for the next sync to retry, rather than recording it as "not job-related" and losing it for good.
+`POST /api/sync/gmail` lists recent mail, skips anything already in `processed_emails`, prefilters with cheap heuristics, runs the LLM (`src/llm/extractApplication.js`) on whatever passed, then reconciles each job-related result (`src/reconcile.js`) against the user's existing applications: no match → new-application candidate; matches and the status is a forward move → status-update candidate (`matched_application_id` set); matches but isn't a forward move → nothing proposed. It never writes to `applications` itself — that only happens when a candidate is accepted through the review queue. An LLM call that fails outright (provider down) intentionally leaves that message unprocessed for the next sync to retry, rather than recording it as "not job-related" and losing it for good.
 
 **LLM provider:** `LLM_PROVIDER=ollama|gemini` in `.env` selects the adapter (see `.env.example`). Ollama is the spec's default (free, local, email never leaves the machine), but proved unreliable in practice on this machine — Gemini (`gemini-flash-latest`, free tier) is what's actually configured and verified end to end. Both are implemented and covered by mocked tests either way.
 
@@ -200,10 +202,15 @@ Requesting an application that doesn't exist, or that belongs to another user, r
 | Method | Path                          | Auth | Body                                                | Success                        |
 |--------|-------------------------------|------|------------------------------------------------------|---------------------------------|
 | GET    | `/api/candidates`             | ✅   | –                                                    | `200 { candidates }` (pending only) |
-| POST   | `/api/candidates/:id/accept`  | ✅   | optional `{ company, role, status, date_applied }`  | `201 { application }`           |
+| POST   | `/api/candidates/:id/accept`  | ✅   | see below                                            | `200`/`201 { application }`     |
 | POST   | `/api/candidates/:id/dismiss` | ✅   | –                                                    | `204`                            |
 
-Accepting writes to `applications` through the same model `/api/applications` uses, tagged `source='email'`, and runs the same validation (company/role required). Any field in the accept body overrides what the LLM extracted -- this is also the whole edit-then-approve flow: a candidate with a low-confidence/null field (e.g. no role) 400s on accept until the client fills it in and resends. Once a candidate is accepted or dismissed it's gone from `GET /api/candidates` for good -- there's no path back to pending.
+`accept` has two shapes depending on whether the candidate was reconciled to an existing application:
+
+- **`matched_application_id` set** (status-update proposal) — body is just an optional `{ status }` override; accepting **advances the matched application's status** (`200`) rather than creating a new row. Company/role are never touched (they already matched).
+- **`matched_application_id` null** (new-application proposal) — body is an optional `{ company, role, status, date_applied }` override merged over the extraction, validated with the same rules `/api/applications` uses, then **creates a new application** (`201`) tagged `source='email'`. A candidate with a low-confidence/null field (e.g. no role) 400s on accept until the client fills it in and resends -- that's the whole edit-then-approve flow, there's no separate edit endpoint.
+
+Once a candidate is accepted or dismissed it's gone from `GET /api/candidates` for good -- there's no path back to pending.
 
 ### Example
 
@@ -227,7 +234,7 @@ curl -X POST http://localhost:3000/api/applications \
 
 ## Roadmap
 
-- Finish Phase 2 — Gmail auto-import: reconciliation (matching a candidate against an existing application instead of always creating a new one; see [`../docs/PHASE2.md`](../docs/PHASE2.md))
+- Phase 2 hardening: pagination on `/api/candidates`, rate limiting on `/api/sync/gmail`, fuzzier company/role matching in `src/reconcile.js`
 - Pagination on the applications list
 - Rate limiting on login and a CORS/security-header layer
 - Later phase: RAG / evaluation harnesses

@@ -114,24 +114,22 @@ npm test                    # runs the backend integration suite
 
 More detail on the API and backend design is in [`server/README.md`](server/README.md).
 
-## Phase 2 — Gmail auto-import (in progress)
+## Phase 2 — Gmail auto-import (feature-complete)
 
-Full build spec: [`docs/PHASE2.md`](docs/PHASE2.md). Goal: connect Gmail (read-only), auto-detect application-related emails, extract structured data with a local LLM (Ollama), and surface it in a review queue — nothing is written to `applications` without the user approving it.
+Full build spec: [`docs/PHASE2.md`](docs/PHASE2.md). Connect Gmail (read-only), auto-detect application-related emails, extract structured data with an LLM, and surface it in a review queue — nothing is written to `applications` without the user approving it. All five build-order steps are done and verified end to end against a real Gmail inbox, real applications, and both real LLM providers:
 
-**Done:**
-- Gmail OAuth connect/callback/status/disconnect, tokens encrypted at rest (`GmailConnect` on the dashboard)
-- `POST /api/sync/gmail` — lists recent mail, dedupes against already-seen messages, prefilters for likely-job-related content, extracts structured fields with an LLM, and writes `candidates` for anything job-related. Verified end to end against a real Gmail inbox.
-
-- Review queue (`GET /api/candidates`, accept/dismiss) with an edit-then-approve UI — the accept form is always editable, so a low-confidence extraction (e.g. a missing role) just means filling in a blank field before hitting Accept rather than a separate edit flow. Accepted candidates write to `applications` through the existing model, tagged `source='email'`. Verified end to end: a real incomplete candidate correctly 400'd until edited, a complete one accepted cleanly.
-
-**Not started yet:**
-- Reconciliation against existing applications (forward-only status updates, matching a candidate to an existing application instead of always creating a new one)
+- **OAuth** — connect/callback/status/disconnect, tokens encrypted at rest (`GmailConnect` on the dashboard).
+- **Fetch + prefilter** — `POST /api/sync/gmail` lists recent mail, dedupes against already-seen messages, and prefilters for likely-job-related content before anything reaches the LLM.
+- **LLM extraction** — `src/llm/extractApplication.js`, one adapter behind `LLM_PROVIDER=ollama|gemini`.
+- **Review queue** — `GET /api/candidates`, accept/dismiss, edit-then-approve UI. Accepted candidates write to `applications` through the existing model, tagged `source='email'`.
+- **Reconciliation** — each job-related extraction is matched (normalized company + role) against the user's existing applications. No match → new-application candidate. Matches and the extracted status is a forward move (`applied < interviewing < offer/rejected < accepted`) → status-update candidate, and accepting it advances the existing application instead of creating a duplicate. Matches but isn't a forward move (same stage restated) → nothing proposed.
 
 **LLM provider note:** the code supports both `ollama` (local) and `gemini` (cloud) behind one `LLM_PROVIDER` switch, per `docs/PHASE2.md`. In practice, local Ollama inference was too unreliable on this machine to build against (a 3B model timed out / hung mid-generation on a real sync run), so **Gemini (`gemini-flash-latest`, free tier) is the provider actually in use** for now. Ollama's adapter, config, and tests are all still there — flipping `LLM_PROVIDER=ollama` in `.env` switches back with no code changes.
 
+**Known gaps / next hardening pass:** no pagination on `GET /api/candidates`; no rate limit on `POST /api/sync/gmail` (a user could trigger repeated syncs back to back); company/role matching is exact-after-normalization, not fuzzy, so a genuinely different-looking company name for the same employer won't reconcile.
+
 ## Roadmap
 
-- Finish Phase 2 (see above)
 - Deploy (frontend host + backend host + cloud MySQL)
 - Pagination on the applications list
 - Rate limiting on login and a security-header layer

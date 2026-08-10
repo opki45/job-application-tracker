@@ -9,7 +9,14 @@ const STATUSES = ['applied', 'interviewing', 'offer', 'rejected', 'accepted'];
 // blank if it couldn't tell). Accepting sends whatever's currently in the
 // fields, so fixing a blank role before hitting Accept IS the edit flow --
 // there's no separate edit mode.
+//
+// A candidate reconciled against an application the user already has
+// (candidate.matched_application_id is set) gets a different, simpler form:
+// company/role already matched, so there's nothing to edit there -- only the
+// proposed status can move, and accepting advances the existing application
+// instead of creating a new one.
 function CandidateRow({ candidate, onAccept, onDismiss }) {
+  const isStatusUpdate = candidate.matched_application_id != null;
   const [company, setCompany] = useState(candidate.company || '');
   const [role, setRole] = useState(candidate.role || '');
   const [status, setStatus] = useState(candidate.status || 'applied');
@@ -21,7 +28,7 @@ function CandidateRow({ candidate, onAccept, onDismiss }) {
     setError('');
     setBusy(true);
     try {
-      await onAccept(candidate.id, { company, role, status });
+      await onAccept(candidate.id, isStatusUpdate ? { status } : { company, role, status });
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -41,14 +48,28 @@ function CandidateRow({ candidate, onAccept, onDismiss }) {
 
   return (
     <li className="candidate-row">
+      {isStatusUpdate && (
+        <p className="candidate-update-note">
+          Status update for <strong>{candidate.company}</strong> — {candidate.role}
+        </p>
+      )}
       <form className="candidate-form" onSubmit={handleAccept}>
-        <input
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-          placeholder="Company"
-          required
-        />
-        <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role" required />
+        {!isStatusUpdate && (
+          <>
+            <input
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              placeholder="Company"
+              required
+            />
+            <input
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              placeholder="Role"
+              required
+            />
+          </>
+        )}
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
