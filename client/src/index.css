@@ -410,6 +410,15 @@ button:disabled {
   color: var(--text);
 }
 
+.gmail-connect {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.gmail-connect .gmail-status {
+  color: var(--text);
+}
+
 .container {
   max-width: 860px;
   margin: 2rem auto;

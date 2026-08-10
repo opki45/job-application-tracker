@@ -3,6 +3,7 @@ import { useAuth } from '../AuthContext';
 import { api } from '../api';
 import Logo from '../components/Logo';
 import ApplicationItem from '../components/ApplicationItem';
+import GmailConnect from '../components/GmailConnect';
 
 const STATUSES = ['applied', 'interviewing', 'offer', 'rejected', 'accepted'];
 
@@ -93,6 +94,7 @@ function Dashboard() {
       <header className="topbar">
         <Logo />
         <div className="user">
+          <GmailConnect />
           <span className="email">{user.email}</span>
           <button className="btn-ghost" onClick={logout}>
             Log out
