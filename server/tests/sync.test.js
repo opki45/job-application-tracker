@@ -138,6 +138,9 @@ describe('POST /api/sync/gmail', () => {
       status: 'applied',
       state: 'pending',
       matched_application_id: null,
+      // Parsed from summary()'s fixed 'Mon, 10 Aug 2026 00:00:00 +0000'
+      // Date header, not whatever day the sync happens to run on.
+      email_date: '2026-08-10',
     });
 
     const [processedRows] = await pool.query(
@@ -145,6 +148,25 @@ describe('POST /api/sync/gmail', () => {
       [userId]
     );
     expect(processedRows.map((r) => r.gmail_message_id)).toEqual(['m1']);
+  });
+
+  test('a missing/unparseable email Date header stores a null email_date rather than throwing', async () => {
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    gmailClient.listMessageIds.mockResolvedValue(['m1']);
+    gmailClient.getMessageSummary.mockResolvedValue(
+      summary('m1', { subject: 'Your application to Some Company', date: 'not a real date' })
+    );
+    gmailClient.getMessageBody.mockResolvedValue('Thanks for applying to Some Company...');
+    extractApplication.mockResolvedValue(JOB_RELATED);
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const [candidateRows] = await pool.query('SELECT * FROM candidates WHERE user_id = ?', [userId]);
+    expect(candidateRows[0].email_date).toBeNull();
   });
 
   test('an LLM "not job related" verdict marks processed without creating a candidate', async () => {

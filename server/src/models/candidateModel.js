@@ -6,13 +6,13 @@ const pool = require('../db/pool');
 
 async function createCandidate(
   userId,
-  { sourceMessageId, company, role, status, confidence, matchedApplicationId = null }
+  { sourceMessageId, company, role, status, confidence, matchedApplicationId = null, emailDate = null }
 ) {
   const [result] = await pool.execute(
     `INSERT INTO candidates
-       (user_id, source_message_id, company, role, status, confidence, matched_application_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [userId, sourceMessageId, company, role, status, confidence, matchedApplicationId]
+       (user_id, source_message_id, company, role, status, confidence, matched_application_id, email_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, sourceMessageId, company, role, status, confidence, matchedApplicationId, emailDate]
   );
   return findCandidateById(userId, result.insertId);
 }

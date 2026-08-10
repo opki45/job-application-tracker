@@ -10,6 +10,19 @@ const { findMatchingApplication, isForwardMove } = require('../reconcile');
 
 const PROVIDER = 'google';
 
+// Gmail's Date header is RFC 2822 (e.g. "Mon, 10 Aug 2026 00:00:00 +0000"),
+// one of the formats JS's Date constructor is spec-guaranteed to parse. I
+// store just the date part -- a DATE column, not a DATETIME -- since that's
+// all "date applied" ever needs. Returns null (rather than throwing) on a
+// missing or unparseable header, so one malformed email can't crash the
+// sync; the caller falls back to something else when this is null.
+function parseEmailDate(rawDate) {
+  if (!rawDate) return null;
+  const parsed = new Date(rawDate);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
 // Persists a refreshed access token back onto the account row. googleapis
 // calls this itself (via the 'tokens' event on the OAuth2 client) whenever
 // it had to use the refresh_token mid-request -- this is the only place that
@@ -92,6 +105,7 @@ async function processShortlistedMessage(userId, gmail, summary, existingApplica
     status: extraction.status,
     confidence: extraction.confidence,
     matchedApplicationId: matched ? matched.id : null,
+    emailDate: parseEmailDate(summary.date),
   });
   await processedEmailModel.markProcessed(userId, summary.id);
   return { candidateCreated: true };

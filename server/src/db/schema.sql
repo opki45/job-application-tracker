@@ -115,3 +115,14 @@ CREATE TABLE IF NOT EXISTS candidates (
   CONSTRAINT fk_candidates_user
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- Post-launch addition, same pattern as applications.source above: not part
+-- of the CREATE TABLE so this file still works against a database that
+-- already has the table. The date the SOURCE EMAIL was sent (parsed from
+-- Gmail's Date header), not the date the sync happened to run -- used as
+-- the default date_applied on accept, since "when I got the confirmation
+-- email" is a much better proxy for "when I applied" than "whenever I next
+-- hit Sync Gmail now". Nullable: falls back to created_at if a header is
+-- ever missing or unparseable.
+ALTER TABLE candidates
+  ADD COLUMN email_date DATE NULL;

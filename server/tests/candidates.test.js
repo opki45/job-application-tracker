@@ -89,6 +89,45 @@ describe('POST /api/candidates/:id/accept', () => {
     expect(list.body.candidates).toHaveLength(0);
   });
 
+  test('uses the source email\'s date, not today, as date_applied when the candidate has one', async () => {
+    const { token, userId } = await createUser();
+    const candidate = await seedCandidate(userId, { emailDate: '2024-05-12' });
+
+    const res = await request(app)
+      .post(`/api/candidates/${candidate.id}/accept`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+
+    expect(res.status).toBe(201);
+    expect(res.body.application.date_applied).toBe('2024-05-12');
+  });
+
+  test('falls back to created_at when the candidate has no email_date (missing/unparseable header)', async () => {
+    const { token, userId } = await createUser();
+    const candidate = await seedCandidate(userId); // emailDate not set -> null
+
+    const res = await request(app)
+      .post(`/api/candidates/${candidate.id}/accept`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+
+    expect(res.status).toBe(201);
+    expect(res.body.application.date_applied).toBe(String(candidate.created_at).slice(0, 10));
+  });
+
+  test('an explicit date_applied override still wins over email_date', async () => {
+    const { token, userId } = await createUser();
+    const candidate = await seedCandidate(userId, { emailDate: '2024-05-12' });
+
+    const res = await request(app)
+      .post(`/api/candidates/${candidate.id}/accept`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ date_applied: '2024-06-01' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.application.date_applied).toBe('2024-06-01');
+  });
+
   test('rejects an incomplete candidate (null role) with 400 until edited', async () => {
     const { token, userId } = await createUser();
     const candidate = await seedCandidate(userId, { role: null, status: null, confidence: 0.6 });

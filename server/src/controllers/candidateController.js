@@ -66,11 +66,16 @@ async function accept(req, res, next) {
       company: req.body.company ?? candidate.company,
       role: req.body.role ?? candidate.role,
       status: req.body.status ?? candidate.status ?? 'applied',
-      // No email date is stored on the candidate row -- created_at (when the
-      // sync detected it) is the closest thing I have unless the user
-      // overrides it. dateStrings:true on the pool means this is already a
-      // "YYYY-MM-DD HH:MM:SS" string, not a Date object.
-      date_applied: req.body.date_applied ?? String(candidate.created_at).slice(0, 10),
+      // Prefer the date the source email was actually sent (parsed from
+      // Gmail's Date header at sync time) over when the sync happened to
+      // run -- "when I got the confirmation email" is a much better proxy
+      // for "when I applied" than "whenever I next hit Sync Gmail now".
+      // Falls back to created_at on the rare candidate where email_date
+      // came back null (missing/unparseable header), then to the user's own
+      // override if they provide one. dateStrings:true on the pool means
+      // both are already plain "YYYY-MM-DD" strings, not Date objects.
+      date_applied:
+        req.body.date_applied ?? candidate.email_date ?? String(candidate.created_at).slice(0, 10),
       job_description: null,
       // Leave notes empty by default (same as a manually-added application)
       // rather than pre-filling extraction metadata like confidence into a
