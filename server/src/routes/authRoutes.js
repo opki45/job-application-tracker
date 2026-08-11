@@ -12,6 +12,13 @@ router.post('/register', authController.register);
 // POST /login -> check credentials and hand back a JWT. (Public.)
 router.post('/login', authController.login);
 
+// Sign-in with Google -- all public, same reasoning as the Gmail OAuth
+// routes: googleLogin/googleCallback are browser redirects with no
+// Authorization header of their own to check.
+router.get('/google', authController.googleLogin);
+router.get('/google/callback', authController.googleCallback);
+router.post('/google/exchange', authController.googleExchange);
+
 // GET /me -> who am I? Protected: 'authenticate' runs first, and only calls the
 // controller if the token is valid.
 router.get('/me', authenticate, authController.me);

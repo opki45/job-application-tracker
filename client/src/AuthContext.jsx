@@ -46,6 +46,17 @@ export function AuthProvider({ children }) {
     await login(email, password);
   }
 
+  // The second half of "Continue with Google": the button itself is a plain
+  // link straight to the backend (a full browser redirect to Google, not a
+  // fetch -- see Login.jsx). By the time control comes back to React, the
+  // backend's callback has already run and redirected here with a
+  // short-lived one-time ?google_code= in the URL. This trades that code for
+  // a real session the same way login()/register() do.
+  async function loginWithGoogleCode(code) {
+    const data = await api.post('/auth/google/exchange', { code });
+    persistSession(data);
+  }
+
   function logout() {
     setAuthToken(null);
     setUser(null);
@@ -54,7 +65,7 @@ export function AuthProvider({ children }) {
   }
 
   // Everything I want to expose to the rest of the app.
-  const value = { user, loading, login, register, logout };
+  const value = { user, loading, login, register, logout, loginWithGoogleCode };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -20,6 +20,11 @@ const config = {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     redirectUri: process.env.GOOGLE_REDIRECT_URI || '',
+    // A second "Authorized redirect URI" on the SAME Google Cloud OAuth
+    // client as above -- Sign-in with Google (identity only) is a separate
+    // flow from the Gmail import grant, so it gets its own callback route
+    // instead of overloading the Gmail one. See googleClient.js.
+    loginRedirectUri: process.env.GOOGLE_LOGIN_REDIRECT_URI || '',
   },
   // 32-byte (64 hex char) key used to encrypt Gmail tokens at rest. See
   // utils/tokenCrypto.js. Generate with:

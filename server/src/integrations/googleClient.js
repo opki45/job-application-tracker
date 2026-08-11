@@ -42,4 +42,38 @@ async function revokeToken(token) {
   await client().revokeToken(token);
 }
 
-module.exports = { getAuthUrl, getTokensFromCode, revokeToken };
+// --- Sign-in with Google -- a separate, identity-only flow from the Gmail
+// import client() above. Same Google Cloud OAuth client (clientId/secret),
+// but its own redirect URI (loginRedirectUri, a second "Authorized redirect
+// URI" registered on that same client) and its own narrower scope: this
+// never asks for Gmail access, just who the person is.
+const LOGIN_SCOPES = ['openid', 'email', 'profile'];
+
+function loginClient() {
+  return new google.auth.OAuth2(
+    config.google.clientId,
+    config.google.clientSecret,
+    config.google.loginRedirectUri
+  );
+}
+
+function getLoginAuthUrl() {
+  return loginClient().generateAuthUrl({ scope: LOGIN_SCOPES });
+}
+
+// Exchanges the code for tokens (same as getTokensFromCode) and verifies the
+// returned id_token's signature against Google's public keys -- this is
+// what actually proves the email came from Google and wasn't forged, not
+// just decoded. Returns the verified payload (sub, email, email_verified,
+// name, ...).
+async function verifyLoginCode(code) {
+  const c = loginClient();
+  const { tokens } = await c.getToken(code);
+  const ticket = await c.verifyIdToken({
+    idToken: tokens.id_token,
+    audience: config.google.clientId,
+  });
+  return ticket.getPayload();
+}
+
+module.exports = { getAuthUrl, getTokensFromCode, revokeToken, getLoginAuthUrl, verifyLoginCode };

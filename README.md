@@ -17,7 +17,7 @@ This is a monorepo: the Express API lives in `server/`, the React web app in `cl
 
 ## Features
 
-- **Authentication** — register, log in, and protected routes using JSON Web Tokens; sessions persist across refreshes. Full account management too: change password, delete account (both re-verify the current password even though the request is already authenticated).
+- **Authentication** — register, log in, and protected routes using JSON Web Tokens; sessions persist across refreshes. "Continue with Google" is real, not decorative — a second, identity-only OAuth flow on the same Google Cloud client the Gmail import uses (see below), account-linked by verified email. Full account management too: change password, delete account (both re-verify the current password even though the request is already authenticated; Google-only accounts get a clear message instead, since they have no password to verify).
 - **Application tracking** — full CRUD for applications (company, role, status, date, job description, notes), plus a dedicated Applications page with search, sortable columns, and real backend pagination.
 - **Dashboard** — summary stats, status filtering, and rows colour-coded by status so you can scan at a glance.
 - **Gmail auto-import** — connect Gmail, and an LLM extracts job-application emails into a review queue; nothing touches your tracked applications until you accept it (see the Phase 2 section below).

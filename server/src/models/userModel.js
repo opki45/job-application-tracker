@@ -52,6 +52,32 @@ async function updatePassword(id, passwordHash) {
   await pool.execute('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id]);
 }
 
+// A Google-created account has no password -- password_hash stays NULL. It's
+// still a normal row in the same table (not a separate identity system), so
+// every other query/model in the app works on it unchanged.
+async function createUserFromGoogle({ email, googleId }) {
+  const [result] = await pool.execute(
+    'INSERT INTO users (email, google_id) VALUES (?, ?)',
+    [email, googleId]
+  );
+  return { id: result.insertId, email };
+}
+
+async function findUserByGoogleId(googleId) {
+  const [rows] = await pool.execute(
+    'SELECT id, email FROM users WHERE google_id = ?',
+    [googleId]
+  );
+  return rows[0] || null;
+}
+
+// Attaches a Google identity to an existing password-created account, the
+// first time that account's (verified) email signs in via Google. After
+// this, either method logs the same user in.
+async function linkGoogleId(id, googleId) {
+  await pool.execute('UPDATE users SET google_id = ? WHERE id = ?', [googleId, id]);
+}
+
 // Every other table (applications, candidates, oauth_accounts,
 // processed_emails, reminders) has ON DELETE CASCADE back to users, so
 // deleting the user row is enough to take everything else with it -- no
@@ -67,4 +93,7 @@ module.exports = {
   findUserByIdWithPassword,
   updatePassword,
   deleteUser,
+  createUserFromGoogle,
+  findUserByGoogleId,
+  linkGoogleId,
 };

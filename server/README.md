@@ -165,10 +165,15 @@ All responses are JSON. Protected endpoints require `Authorization: Bearer <toke
 | GET    | `/api/auth/me`       | ✅   | –                     | `200 { user }`         |
 | PUT    | `/api/auth/password` | ✅   | `{ currentPassword, newPassword }` | `204`      |
 | DELETE | `/api/auth/me`       | ✅   | `{ password }`        | `204`                   |
+| GET    | `/api/auth/google`   | –    | –                     | `302` to Google's consent screen |
+| GET    | `/api/auth/google/callback` | – | Public (Google redirect) | `302` to `CLIENT_URL/login?google_code=...` or `?google=error` |
+| POST   | `/api/auth/google/exchange` | – | `{ code }`         | `200 { user, token }`  |
 
 `password` must be at least 8 characters. Duplicate email → `409`. Bad credentials → `401`.
 
-Both `password` endpoints re-verify the CURRENT password before acting, even though the request is already authenticated -- a valid JWT alone isn't proof you still know the password (the token could be hours old, the tab left open). Wrong current/confirmation password → `401`. Deleting cascades to every other table (applications, candidates, reminders, oauth_accounts, processed_emails) via `ON DELETE CASCADE` -- no manual cleanup needed.
+Both `password` endpoints re-verify the CURRENT password before acting, even though the request is already authenticated -- a valid JWT alone isn't proof you still know the password (the token could be hours old, the tab left open). Wrong current/confirmation password → `401`. Deleting cascades to every other table (applications, candidates, reminders, oauth_accounts, processed_emails) via `ON DELETE CASCADE` -- no manual cleanup needed. A Google-only account (see below) has no password to verify, so both endpoints return a clear `400` instead of crashing on a `NULL` hash.
+
+**Sign in with Google** is a separate, identity-only OAuth flow from the Gmail import below -- same Google Cloud OAuth client (`GOOGLE_CLIENT_ID`/`SECRET`), a second registered redirect URI, and `openid email profile` scope instead of `gmail.readonly`. `google/callback` never hands the browser the real session token directly (a day-long bearer token in a URL is a bad idea -- browser history, `Referer` headers, server logs); it redirects with a 60-second single-purpose code that `google/exchange` trades for the real `{ user, token }` over a normal POST body. First sign-in creates a user with `password_hash NULL`; if that email already has a password account, it links `google_id` onto the existing row instead of creating a duplicate (safe because Google's `email_verified` claim vouches for the email).
 
 ### Applications
 

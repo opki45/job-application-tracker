@@ -151,3 +151,19 @@ CREATE TABLE IF NOT EXISTS reminders (
   CONSTRAINT fk_reminders_application
     FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
+
+-- Sign-in with Google, added to the users table. This is a *different* OAuth
+-- flow from oauth_accounts above -- that one is the Gmail read-only import
+-- grant (per-user, offline, tied to an already-authenticated account); this
+-- is identity-only (openid email profile), used to log in or register in
+-- the first place. Same Google Cloud OAuth client, different scope and
+-- redirect URI -- see server/src/integrations/googleClient.js.
+--
+-- An account created via Google has no password, so password_hash has to
+-- become nullable. google_id stores Google's stable subject id ('sub'),
+-- not the email, for account linking -- an email is a better UX key to
+-- match against on first sign-in, but isn't guaranteed stable forever the
+-- way the subject id is.
+ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL;
+ALTER TABLE users ADD COLUMN google_id VARCHAR(255) NULL;
+ALTER TABLE users ADD UNIQUE KEY uq_users_google_id (google_id);

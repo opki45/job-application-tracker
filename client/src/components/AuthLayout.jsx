@@ -1,3 +1,4 @@
+import { useState, useLayoutEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import Logo from './Logo';
 import ProductPreview from './ProductPreview';
@@ -11,6 +12,22 @@ import ProductPreview from './ProductPreview';
 function AuthLayout({ title, titleAccent, subtitle, navPrompt, navTo, navLabel, children }) {
   const { pathname } = useLocation();
   const isLogin = pathname === '/login';
+
+  // The sliding pill behind the active tab: measured from the actual tab
+  // elements (not a CSS percentage guess) so it's exact regardless of the
+  // container's padding/gap, and re-measured on route change and resize.
+  const loginTabRef = useRef(null);
+  const registerTabRef = useRef(null);
+  const [thumb, setThumb] = useState({ left: 0, width: 0 });
+
+  useLayoutEffect(() => {
+    const el = isLogin ? loginTabRef.current : registerTabRef.current;
+    if (!el) return;
+    const measure = () => setThumb({ left: el.offsetLeft, width: el.offsetWidth });
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [isLogin]);
 
   return (
     <div className="landing">
@@ -40,10 +57,14 @@ function AuthLayout({ title, titleAccent, subtitle, navPrompt, navTo, navLabel, 
           <p className="hero-sub">{subtitle}</p>
 
           <div className="auth-tabs">
-            <Link to="/login" className={`auth-tab${isLogin ? ' active' : ''}`}>
+            <div
+              className="auth-tabs-thumb"
+              style={{ transform: `translateX(${thumb.left}px)`, width: thumb.width }}
+            />
+            <Link ref={loginTabRef} to="/login" className={`auth-tab${isLogin ? ' active' : ''}`}>
               Log in
             </Link>
-            <Link to="/register" className={`auth-tab${isLogin ? '' : ' active'}`}>
+            <Link ref={registerTabRef} to="/register" className={`auth-tab${isLogin ? '' : ' active'}`}>
               Create account
             </Link>
           </div>

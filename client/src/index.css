@@ -209,6 +209,16 @@ button:disabled {
   padding-top: 0.5rem;
   border-right: 1px solid var(--border);
   padding-right: 3.5rem;
+  /* The badge/title/subtitle/form are each narrower than this column
+     (hero-sub caps at 40ch, hero-form/auth-tabs at 420px), so without this
+     they hug the column's left edge and leave a lot of dead space before
+     the border-right -- reads as "pushed left" rather than centered in the
+     panel. Centering them as a flex column (not text-align: center) keeps
+     each line's own text left-aligned, just centers the block as a whole. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: left;
 }
 .auth-badge {
   display: inline-block;
@@ -238,17 +248,43 @@ button:disabled {
   max-width: 40ch;
 }
 
-/* Segmented Log in / Create account tab switcher */
+/* Segmented Log in / Create account tab switcher. The active pill is a
+   separate absolutely-positioned element (.auth-tabs-thumb) that slides
+   between the two tabs, rather than each tab painting its own background --
+   that's what makes switching an animation instead of a hard cut.
+   AuthLayout.jsx measures the active <Link>'s actual offsetLeft/offsetWidth
+   and sets the thumb's transform/width from that, so it's exact regardless
+   of this file's padding/gap values. */
 .auth-tabs {
+  position: relative;
   display: flex;
   gap: 0.25rem;
   background: #f1f0f9;
   border-radius: 11px;
   padding: 0.3rem;
   margin-top: 1.6rem;
+  /* width: 100% (capped by max-width) matters, not just cosmetic: hero-left
+     is now a centered flex column, and without an explicit width this
+     flex:1-children container shrinks toward the tabs' min-content (i.e.
+     their longest unbreakable word) instead of filling 420px -- that's what
+     was wrapping "Create account" onto two lines. */
+  width: 100%;
   max-width: 420px;
 }
+.auth-tabs-thumb {
+  position: absolute;
+  top: 0.3rem;
+  left: 0;
+  bottom: 0.3rem;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid #d9d5fb;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
 .auth-tab {
+  position: relative;
+  z-index: 1;
   flex: 1;
   text-align: center;
   padding: 0.55rem 0.75rem;
@@ -257,30 +293,28 @@ button:disabled {
   font-size: 0.9rem;
   color: var(--muted);
   text-decoration: none;
+  transition: color 0.28s ease;
 }
 .auth-tab.active {
-  background: var(--surface);
   color: var(--primary);
-  border: 1px solid #d9d5fb;
-  box-shadow: var(--shadow-sm);
 }
 
 .hero-form {
   margin-top: 1.4rem;
+  width: 100%;
   max-width: 420px;
-}
-.form-heading {
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  margin-bottom: 1rem;
 }
 .hero-form form {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
 }
-.hero-form label {
+/* :not(.checkbox-label) matters, not just style: .checkbox-label is also a
+   <label> (the Remember me row), and without this exclusion its own row
+   layout below loses to this rule's flex-direction: column on specificity
+   (0,1,1 beats 0,1,0) -- that was stacking the checkbox above the text
+   instead of beside it. */
+.hero-form label:not(.checkbox-label) {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -415,8 +449,13 @@ button:disabled {
 
 .hero-right {
   display: flex;
-  align-items: center;
+  /* Was align-items: center, which centered the preview against the whole
+     left column's height -- landed it around the hero-title, not the top.
+     flex-start + the same padding-top hero-left starts its content with
+     lines its top edge up with the badge instead. */
+  align-items: flex-start;
   justify-content: flex-start;
+  padding-top: 0.5rem;
 }
 
 /* Product preview mock */
