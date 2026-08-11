@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { api } from '../api';
-import AppShell from '../components/AppShell';
 import GmailConnect from '../components/GmailConnect';
 
 const THEMES = ['light', 'dark', 'system'];
@@ -63,7 +62,7 @@ function SettingsPage() {
   const [theme, setTheme] = useState('light');
 
   return (
-    <AppShell activeNav="settings">
+    <>
       <div className="panel-card">
         <div className="panel-title">Account</div>
         <p className="panel-subtitle">{user.email}</p>
@@ -170,7 +169,7 @@ function SettingsPage() {
           {deleteError && <span className="error">{deleteError}</span>}
         </form>
       </div>
-    </AppShell>
+    </>
   );
 }
 

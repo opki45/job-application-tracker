@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
-import AppShell from '../components/AppShell';
 import { BellIcon, PlusIcon, TrashIcon, CheckIcon } from '../components/icons';
 import { formatDate } from '../utils/formatDate';
 
@@ -125,7 +124,7 @@ function RemindersPage() {
   const completed = reminders.filter((r) => r.done);
 
   return (
-    <AppShell activeNav="reminders">
+    <>
       <div className="panels-row">
         <div className="panel-card">
           <div className="panel-title">New reminder</div>
@@ -223,7 +222,7 @@ function RemindersPage() {
           </ul>
         </div>
       )}
-    </AppShell>
+    </>
   );
 }
 

@@ -38,6 +38,34 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ---------- Sidebar page transitions ---------- */
+/* Sidebar.jsx drives the browser's native View Transitions API by hand on
+   nav clicks (document.startViewTransition + flushSync) instead of an
+   instant hard cut -- see the comment on handleNavClick there for why it's
+   manual rather than React Router's own `viewTransition` prop. AppShell is
+   a layout route now (see App.jsx) -- the topbar/sidebar DOM doesn't
+   actually change between these navigations, so the default whole-page
+   capture crossfades those regions between two identical screenshots
+   (visually a no-op) while the main-content area, which DOES differ,
+   crossfades for real. No per-element view-transition-name needed for that
+   reason. Unsupported browsers (Firefox, older Safari) just get the old
+   instant navigation -- handleNavClick feature-detects and falls through to
+   a plain <Link> navigation when the API doesn't exist.
+   Browsers that don't implement the View Transitions API at all also don't
+   parse these pseudo-elements, so no @supports guard is needed either. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.22s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
 /* ---------- Logo ---------- */
 .logo {
   display: inline-flex;

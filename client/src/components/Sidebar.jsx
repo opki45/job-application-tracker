@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { flushSync } from 'react-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import {
   HomeIcon,
@@ -23,33 +24,55 @@ const NAV_ITEMS = [
   { key: 'settings', label: 'Settings', icon: GearIcon, to: '/settings' },
 ];
 
-// activeNav names which item is highlighted (e.g. "applications" on the
-// Applications page). hasActivity switches the footer between the theme
-// toggle (a brand-new, empty-state user) and the "Upgrade to Pro" nudge --
-// defaults to true since every page other than a freshly-loaded Dashboard
-// doesn't have a cheap way to know if the user has any applications yet,
-// and "assume there's data" is the safer default once you've navigated
-// somewhere other than the empty-state's own page.
-function Sidebar({ activeNav = 'dashboard', hasActivity = true }) {
+// Now a persistent part of AppShell (a layout route, mounted once) rather
+// than something every page re-mounts with its own activeNav/hasActivity
+// props -- so both are derived here instead of being handed down. activeNav
+// comes from the current URL (review-queue is excluded from the match: it's
+// a secondary link to '/', not its own route, and was never highlighted
+// even when this was a prop). hasActivity -- whether to show the "Upgrade to
+// Pro" nudge vs. the theme toggle -- used to come only from Dashboard's own
+// fetch; now it's a real (if minimal) fetch of its own, same pattern as the
+// review-queue badge count already used.
+function Sidebar() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeNav = NAV_ITEMS.find(
+    (item) => item.key !== 'review-queue' && item.to === location.pathname
+  )?.key;
+
+  // React Router's own `viewTransition` prop on <Link> is built for its data
+  // router (createBrowserRouter + RouterProvider); this app uses the plain
+  // declarative <BrowserRouter>/<Routes>, where it silently never calls
+  // document.startViewTransition at all (confirmed by instrumenting it --
+  // zero calls on navigation). Driving the View Transitions API by hand
+  // instead: flushSync forces the navigate()-triggered re-render to commit
+  // synchronously *inside* startViewTransition's callback, which is what the
+  // API needs to capture an old/new DOM snapshot pair to animate between.
+  function handleNavClick(e, to) {
+    if (!document.startViewTransition) return; // let the plain <Link> navigate normally
+    e.preventDefault();
+    document.startViewTransition(() => {
+      flushSync(() => navigate(to));
+    });
+  }
+
   const [reviewQueueCount, setReviewQueueCount] = useState(0);
+  const [hasActivity, setHasActivity] = useState(true);
   // Purely a visual toggle (icon/label) -- there's no dark theme built yet,
   // so this doesn't switch a real theme. It's here because the reference
   // shows it as a persistent sidebar element.
   const [light, setLight] = useState(true);
 
-  // The badge needs to be accurate from every page, not just Dashboard (which
-  // already has this count from its own candidates fetch) -- so Sidebar
-  // fetches it independently rather than requiring every page to plumb it
-  // down as a prop.
   useEffect(() => {
     let cancelled = false;
-    api
-      .get('/candidates')
-      .then((data) => {
-        if (!cancelled) setReviewQueueCount(data.candidates.length);
+    Promise.all([api.get('/applications'), api.get('/candidates')])
+      .then(([appsData, candidatesData]) => {
+        if (cancelled) return;
+        setReviewQueueCount(candidatesData.candidates.length);
+        setHasActivity(appsData.applications.length > 0 || candidatesData.candidates.length > 0);
       })
       .catch(() => {
-        // Non-critical: worst case the badge just doesn't show a count.
+        // Non-critical: worst case the badge/footer just use their defaults.
       });
     return () => {
       cancelled = true;
@@ -60,7 +83,12 @@ function Sidebar({ activeNav = 'dashboard', hasActivity = true }) {
     <aside className="sidebar">
       <nav className="sidebar-nav">
         {NAV_ITEMS.map(({ key, label, icon: Icon, to, showBadge }) => (
-          <Link key={key} to={to} className={`sidebar-item${activeNav === key ? ' active' : ''}`}>
+          <Link
+            key={key}
+            to={to}
+            onClick={(e) => handleNavClick(e, to)}
+            className={`sidebar-item${activeNav === key ? ' active' : ''}`}
+          >
             <Icon />
             <span>{label}</span>
             {showBadge && reviewQueueCount > 0 && (

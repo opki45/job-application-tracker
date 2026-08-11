@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import AppShell from '../components/AppShell';
 import ApplicationItem from '../components/ApplicationItem';
 import ReviewQueue from '../components/ReviewQueue';
 import {
@@ -151,7 +150,7 @@ function Dashboard() {
     : applications;
 
   return (
-    <AppShell activeNav="dashboard" hasActivity={applications.length > 0 || candidates.length > 0}>
+    <>
       {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card stat-total">
@@ -337,7 +336,7 @@ function Dashboard() {
           </div>
         )}
       </div>
-    </AppShell>
+    </>
   );
 }
 

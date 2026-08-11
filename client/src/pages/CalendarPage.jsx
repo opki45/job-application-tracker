@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../api';
-import AppShell from '../components/AppShell';
 import CompanyLogo from '../components/CompanyLogo';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -57,7 +56,7 @@ function CalendarPage() {
   const selectedApps = selectedDate ? byDate[selectedDate] || [] : [];
 
   return (
-    <AppShell activeNav="calendar">
+    <>
       <div className="panel-card">
         {loading && <p className="muted">Loading...</p>}
         {error && <p className="error">{error}</p>}
@@ -150,7 +149,7 @@ function CalendarPage() {
           )}
         </div>
       )}
-    </AppShell>
+    </>
   );
 }
 

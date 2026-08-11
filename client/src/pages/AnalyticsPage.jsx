@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../api';
-import AppShell from '../components/AppShell';
 import { GmailIcon } from '../components/icons';
 
 const STATUSES = ['applied', 'interviewing', 'offer', 'rejected', 'accepted'];
@@ -81,7 +80,7 @@ function AnalyticsPage() {
   }, [applications]);
 
   return (
-    <AppShell activeNav="analytics">
+    <>
       {loading && <p className="muted">Loading...</p>}
       {error && <p className="error">{error}</p>}
 
@@ -201,7 +200,7 @@ function AnalyticsPage() {
           </div>
         </>
       )}
-    </AppShell>
+    </>
   );
 }
 

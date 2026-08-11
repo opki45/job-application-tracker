@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
-import AppShell from '../components/AppShell';
 import ApplicationItem from '../components/ApplicationItem';
 import { FolderOpenIcon } from '../components/icons';
 
@@ -88,8 +87,7 @@ function ApplicationsPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <AppShell activeNav="applications">
-      <div className="panel-card">
+    <div className="panel-card">
         <div className="panel-head-row">
           <span className="panel-title">Applications</span>
           <span className="muted">{total} results</span>
@@ -200,7 +198,6 @@ function ApplicationsPage() {
           </>
         )}
       </div>
-    </AppShell>
   );
 }
 
