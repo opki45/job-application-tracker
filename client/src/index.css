@@ -209,16 +209,17 @@ button:disabled {
   padding-top: 0.5rem;
   border-right: 1px solid var(--border);
   padding-right: 3.5rem;
-  /* The badge/title/subtitle/form are each narrower than this column
-     (hero-sub caps at 40ch, hero-form/auth-tabs at 420px), so without this
-     they hug the column's left edge and leave a lot of dead space before
-     the border-right -- reads as "pushed left" rather than centered in the
-     panel. Centering them as a flex column (not text-align: center) keeps
-     each line's own text left-aligned, just centers the block as a whole. */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: left;
+}
+/* The single shared width every child (badge/title/subtitle/tabs/form)
+   left-aligns within -- matches hero-form/auth-tabs's own 420px cap, so
+   literally everything shares one left edge AND one right edge. Only this
+   one box is centered in the (wider) hero-left panel; centering each child
+   independently (the previous approach) gave each a different left edge
+   since they're different natural widths, which is what "not aligned on
+   grid" was describing. */
+.hero-left-content {
+  max-width: 420px;
+  margin: 0 auto;
 }
 .auth-badge {
   display: inline-block;
@@ -231,8 +232,13 @@ button:disabled {
   margin-bottom: 1.4rem;
 }
 .hero-title {
-  font-size: 3.2rem;
-  line-height: 1.1;
+  /* Was 3.2rem -- fit Login's shorter "Your job search," fine at the new
+     420px aligned width, but Register's longer "Track every application"
+     wrapped mid-word onto a 3rd line. Sized down to fit the longer of the
+     two on one line, applied to both so the two auth screens' headlines
+     stay visually consistent with each other. */
+  font-size: 2.15rem;
+  line-height: 1.2;
   letter-spacing: -0.03em;
   font-weight: 800;
   color: var(--text);
@@ -428,6 +434,16 @@ button:disabled {
   justify-content: center;
   gap: 0.6rem;
   font-weight: 700;
+  /* This is an <a>, not a <button> (a real link to /api/auth/google, not a
+     fetch) -- so it doesn't get the generic `button { padding, border-radius,
+     cursor }` reset below, and needs its own. Without these it collapsed to
+     its bare text+icon size with square corners, which is the "sizing looks
+     awkward" regression. */
+  padding: 0.6rem 1.05rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
 }
 .btn-google:hover:not(:disabled) {
   background: #f8f8fb;

@@ -44,32 +44,41 @@ function AuthLayout({ title, titleAccent, subtitle, navPrompt, navTo, navLabel, 
 
       <div className="landing-hero">
         <div className="hero-left">
-          <span className="auth-badge">Track. Organize. Get hired.</span>
-          <h1 className="hero-title">
-            {title}
-            {titleAccent && (
-              <>
-                <br />
-                <span className="hero-title-accent">{titleAccent}</span>
-              </>
-            )}
-          </h1>
-          <p className="hero-sub">{subtitle}</p>
+          {/* hero-left-content matters, not just cosmetic: badge/headline/
+              subtitle/tabs/form each have different natural widths, so
+              centering them independently (the previous approach) gave each
+              a different left edge -- the badge (short) centered with a big
+              offset, the headline (long) with a small one, so nothing lined
+              up. This wrapper gives them one shared width to left-align
+              within, and only THAT single box gets centered in the panel. */}
+          <div className="hero-left-content">
+            <span className="auth-badge">Track. Organize. Get hired.</span>
+            <h1 className="hero-title">
+              {title}
+              {titleAccent && (
+                <>
+                  <br />
+                  <span className="hero-title-accent">{titleAccent}</span>
+                </>
+              )}
+            </h1>
+            <p className="hero-sub">{subtitle}</p>
 
-          <div className="auth-tabs">
-            <div
-              className="auth-tabs-thumb"
-              style={{ transform: `translateX(${thumb.left}px)`, width: thumb.width }}
-            />
-            <Link ref={loginTabRef} to="/login" className={`auth-tab${isLogin ? ' active' : ''}`}>
-              Log in
-            </Link>
-            <Link ref={registerTabRef} to="/register" className={`auth-tab${isLogin ? '' : ' active'}`}>
-              Create account
-            </Link>
+            <div className="auth-tabs">
+              <div
+                className="auth-tabs-thumb"
+                style={{ transform: `translateX(${thumb.left}px)`, width: thumb.width }}
+              />
+              <Link ref={loginTabRef} to="/login" className={`auth-tab${isLogin ? ' active' : ''}`}>
+                Log in
+              </Link>
+              <Link ref={registerTabRef} to="/register" className={`auth-tab${isLogin ? '' : ' active'}`}>
+                Create account
+              </Link>
+            </div>
+
+            <div className="hero-form">{children}</div>
           </div>
-
-          <div className="hero-form">{children}</div>
         </div>
         <div className="hero-right">
           <ProductPreview />
