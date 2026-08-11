@@ -1,12 +1,16 @@
 import { useState, useCallback } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../src/api';
 import { useGmail } from '../../src/GmailContext';
-import { colors, radius } from '../../src/theme';
+import { colors } from '../../src/theme';
 import CandidateCard from '../../src/components/CandidateCard';
 
+// Matches designs/mobile-view.png's screen 4: back arrow, "Review queue N",
+// "Sync now" -- and deliberately no BottomTabBar, since this screen isn't
+// one of the 5 tab destinations (it's reached from Home's review-queue
+// section, see (app)/index.js).
 export default function ReviewQueue() {
   const gmail = useGmail();
   const [candidates, setCandidates] = useState([]);
@@ -66,22 +70,22 @@ export default function ReviewQueue() {
 
   return (
     <View style={styles.screen}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={10}>
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>
+          Review queue{candidates.length > 0 ? ` ${candidates.length}` : ''}
+        </Text>
+        <Pressable onPress={handleSync} disabled={syncing} hitSlop={10}>
+          <Text style={styles.syncLink}>{syncing ? 'Syncing...' : 'Sync now'}</Text>
+        </Pressable>
+      </View>
+
       <FlatList
         data={candidates}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Review queue{candidates.length > 0 ? ` (${candidates.length})` : ''}</Text>
-            <Pressable
-              style={[styles.syncBtn, syncing && styles.syncBtnDisabled]}
-              onPress={handleSync}
-              disabled={syncing}
-            >
-              <Text style={styles.syncBtnText}>{syncing ? 'Syncing...' : 'Sync now'}</Text>
-            </Pressable>
-          </View>
-        }
         renderItem={({ item }) => (
           <CandidateCard candidate={item} onAccept={handleAccept} onDismiss={handleDismiss} />
         )}
@@ -91,7 +95,9 @@ export default function ReviewQueue() {
             {gmail.connected ? (
               <>
                 <Text style={styles.emptyTitle}>Gmail connected</Text>
-                <Text style={styles.emptySub}>Tap Sync now to scan your inbox.</Text>
+                <Text style={styles.emptySub}>
+                  Press Sync now to scan your inbox for job application emails.
+                </Text>
               </>
             ) : (
               <>
@@ -122,34 +128,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.bg,
   },
-  listContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  headerRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 14,
   },
-  title: {
-    fontSize: 18,
+  headerTitle: {
+    fontSize: 16,
     fontWeight: '800',
     color: colors.text,
   },
-  syncBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  syncBtnDisabled: {
-    opacity: 0.6,
-  },
-  syncBtnText: {
-    color: '#fff',
-    fontWeight: '700',
+  syncLink: {
     fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
   },
   empty: {
     alignItems: 'center',

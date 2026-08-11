@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import StatusPicker from './StatusPicker';
-import { colors, radius } from '../theme';
+import CompanyLogo from './CompanyLogo';
+import StatusPill from './StatusPill';
+import { colors } from '../theme';
 
 // date_applied is a "YYYY-MM-DD" string. Built from parts, not
 // `new Date(dateString)`, for the same reason as the web app's formatDate
@@ -13,100 +14,44 @@ function formatDate(dateStr) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function ApplicationRow({ app, onStatusChange, onSaveNotes, onDelete }) {
-  const [expanded, setExpanded] = useState(false);
-  const [notes, setNotes] = useState(app.notes || '');
-  const [saving, setSaving] = useState(false);
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await onSaveNotes(app.id, notes);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function confirmDelete() {
-    Alert.alert('Delete application', `Remove ${app.company} — ${app.role}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => onDelete(app.id) },
-    ]);
-  }
-
+// Summary-only row -- matches designs/mobile-view.png's applications list,
+// which shows no inline edit affordances at all. Status changes, notes, and
+// delete all moved to the detail screen (application/[id].js); tapping
+// anywhere on the row pushes there.
+export default function ApplicationRow({ app }) {
   return (
-    <View style={[styles.row, { borderLeftColor: colors.status[app.status] }]}>
-      <View style={styles.mainRow}>
-        <View style={styles.info}>
-          <Text style={styles.company}>{app.company}</Text>
-          <Text style={styles.role}>{app.role}</Text>
-          <View style={styles.metaRow}>
-            <Text style={styles.date}>{formatDate(app.date_applied)}</Text>
-            {app.source === 'email' && (
-              <View style={styles.sourceTag}>
-                <Ionicons name="mail-outline" size={11} color={colors.muted} />
-                <Text style={styles.sourceText}>Gmail</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        <StatusPicker status={app.status} onChange={(s) => onStatusChange(app.id, s)} />
+    <Pressable style={styles.row} onPress={() => router.push(`/application/${app.id}`)}>
+      <CompanyLogo company={app.company} />
+      <View style={styles.info}>
+        <Text style={styles.company} numberOfLines={1}>{app.company}</Text>
+        <Text style={styles.role} numberOfLines={1}>{app.role}</Text>
       </View>
-
-      <View style={styles.actionsRow}>
-        <Pressable style={styles.actionBtn} onPress={() => setExpanded((v) => !v)}>
-          <Ionicons
-            name={app.notes ? 'document-text' : 'document-text-outline'}
-            size={16}
-            color={app.notes ? colors.primary : colors.muted}
-          />
-          <Text style={styles.actionText}>Notes</Text>
-        </Pressable>
-        <Pressable style={styles.actionBtn} onPress={confirmDelete}>
-          <Ionicons name="trash-outline" size={16} color={colors.danger} />
-          <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
-        </Pressable>
-      </View>
-
-      {expanded && (
-        <View style={styles.notesBox}>
-          <TextInput
-            style={styles.notesInput}
-            multiline
-            placeholder="Recruiter name, next steps, interview dates..."
-            placeholderTextColor={colors.faint}
-            value={notes}
-            onChangeText={setNotes}
-          />
-          <Pressable
-            style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-            onPress={handleSave}
-            disabled={saving}
-          >
-            <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save notes'}</Text>
-          </Pressable>
+      <View style={styles.right}>
+        <StatusPill status={app.status} />
+        <View style={styles.metaRow}>
+          {app.source === 'email' ? (
+            <Ionicons name="mail" size={12} color={colors.primary} />
+          ) : (
+            <Text style={styles.sourceText}>Manual</Text>
+          )}
         </View>
-      )}
-    </View>
+        <Text style={styles.date}>{formatDate(app.date_applied)}</Text>
+      </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderLeftWidth: 3,
-    borderRadius: radius.md,
-    padding: 14,
+    borderRadius: 14,
+    padding: 12,
     marginBottom: 10,
-  },
-  mainRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 10,
   },
   info: {
     flex: 1,
@@ -122,69 +67,20 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 1,
   },
+  right: {
+    alignItems: 'flex-end',
+    gap: 5,
+  },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
-  },
-  date: {
-    fontSize: 12,
-    color: colors.faint,
-  },
-  sourceTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
   },
   sourceText: {
     fontSize: 11,
-    color: colors.muted,
+    color: colors.faint,
   },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  actionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.muted,
-  },
-  notesBox: {
-    marginTop: 10,
-    gap: 8,
-  },
-  notesInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: 10,
-    minHeight: 70,
-    fontSize: 14,
-    color: colors.text,
-    textAlignVertical: 'top',
-  },
-  saveBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.sm,
-    paddingVertical: 9,
-    alignItems: 'center',
-  },
-  saveBtnDisabled: {
-    opacity: 0.6,
-  },
-  saveBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 13,
+  date: {
+    fontSize: 11,
+    color: colors.faint,
   },
 });

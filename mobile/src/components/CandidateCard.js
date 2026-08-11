@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import StatusPicker from './StatusPicker';
+import CompanyLogo from './CompanyLogo';
 import { colors, radius } from '../theme';
 
 // Mirrors client/src/components/ReviewQueue.jsx's CandidateCard: a
@@ -41,25 +42,33 @@ export default function CandidateCard({ candidate, onAccept, onDismiss }) {
 
   return (
     <View style={[styles.card, isStatusUpdate ? styles.cardUpdate : styles.cardNew]}>
-      <Text style={[styles.tag, isStatusUpdate ? styles.tagUpdate : styles.tagNew]}>
-        {isStatusUpdate ? 'STATUS UPDATE' : 'NEW APPLICATION (AI DETECTED)'}
-      </Text>
+      <View style={styles.topRow}>
+        <Text style={[styles.tag, isStatusUpdate ? styles.tagUpdate : styles.tagNew]}>
+          {isStatusUpdate ? 'STATUS UPDATE FOR EXISTING APPLICATION' : 'NEW APPLICATION (AI DETECTED)'}
+        </Text>
+        <Text style={styles.confidence}>{Math.round(candidate.confidence * 100)}%</Text>
+      </View>
 
       {isStatusUpdate ? (
-        <View style={styles.readOnlyInfo}>
-          <Text style={styles.company}>{candidate.company}</Text>
-          <Text style={styles.role}>{candidate.role}</Text>
+        <View style={styles.readOnlyRow}>
+          <CompanyLogo company={candidate.company} size={34} />
+          <View>
+            <Text style={styles.company}>{candidate.company}</Text>
+            <Text style={styles.role}>{candidate.role}</Text>
+          </View>
         </View>
       ) : (
         <View style={styles.fields}>
+          <Text style={styles.inputLabel}>Company</Text>
           <TextInput style={styles.input} placeholder="Company" value={company} onChangeText={setCompany} />
+          <Text style={styles.inputLabel}>Role</Text>
           <TextInput style={styles.input} placeholder="Role" value={role} onChangeText={setRole} />
         </View>
       )}
 
-      <View style={styles.metaRow}>
+      <Text style={styles.inputLabel}>Status</Text>
+      <View style={styles.statusRow}>
         <StatusPicker status={status} onChange={setStatus} />
-        <Text style={styles.confidence}>{Math.round(candidate.confidence * 100)}% confidence</Text>
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -91,7 +100,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fffcf5',
     borderColor: '#fbe7c2',
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 12,
+  },
   tag: {
+    flex: 1,
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.3,
@@ -99,7 +116,6 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 5,
     alignSelf: 'flex-start',
-    marginBottom: 10,
   },
   tagNew: {
     backgroundColor: '#ece7fd',
@@ -109,12 +125,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fdecc8',
     color: '#92650a',
   },
-  readOnlyInfo: {
-    marginBottom: 10,
+  readOnlyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
   },
   fields: {
-    gap: 6,
-    marginBottom: 10,
+    gap: 4,
+    marginBottom: 4,
   },
   company: {
     fontSize: 15,
@@ -126,6 +145,12 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 1,
   },
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.muted,
+    marginBottom: 4,
+  },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -134,16 +159,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: colors.surface,
     color: colors.text,
+    marginBottom: 8,
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+  statusRow: {
+    marginBottom: 12,
   },
   confidence: {
-    fontSize: 12,
-    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.text,
   },
   actions: {
     flexDirection: 'row',
@@ -156,7 +180,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnAccept: {
-    backgroundColor: '#16a34a',
+    backgroundColor: colors.success,
   },
   btnAcceptText: {
     color: '#fff',
