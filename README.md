@@ -149,9 +149,9 @@ The dashboard's sidebar originally had nav items with nowhere to go (Application
 - **Reminders** — a genuinely new feature: its own table, optionally linked to a specific application (`ON DELETE SET NULL` if that application is later deleted, so the reminder survives).
 - **Settings** — Gmail connect/disconnect (moved here too, shared via `GmailContext` instead of re-fetched per page), change password, delete account (password + typed "DELETE" confirmation; cascades via the existing `ON DELETE CASCADE` foreign keys), and a real light/dark/system theme picker (see below — it's not decorative anymore).
 
-## Mobile (Expo Go)
+## Mobile (Expo Go) — paused
 
-A React Native companion app lives in [`mobile/`](mobile/README.md), UI-matched to [`designs/mobile-view.png`](designs/mobile-view.png): login/register, a home dashboard with real per-status sparklines, the full applications list, a dedicated application detail screen, the Gmail review queue, a Calendar month view, and an Analytics screen (status donut, trend line, source breakdown) — all against the same backend with no server changes. See that README for setup (you'll need your dev machine's LAN IP so a phone can reach the API) and the honest trade-offs: Gmail connect opens the existing web OAuth flow in the system browser (no native deep-link back into the app yet), and the application detail screen's "Activity" section is derived from existing timestamps rather than a real audit log.
+A React Native companion app lives in [`mobile/`](mobile/README.md), UI-matched to [`designs/mobile-view.png`](designs/mobile-view.png): login/register, a home dashboard, the full applications list, a dedicated application detail screen, the Gmail review queue, a Calendar month view, and an Analytics screen — all against the same backend with no server changes. **Development is on hold as of this point** — it hit real on-device bugs during testing that weren't chased down, and the whole effort is deferred to a later phase rather than iterated on further right now. The code stays in the repo (nothing was deleted); [`mobile/PLAN.md`](mobile/PLAN.md) has the full build history if/when work picks back up. Treat anything mobile-related as unverified until then, even where earlier commits claimed something was fixed.
 
 ## Dark mode
 
@@ -161,5 +161,5 @@ Real, not decorative: Settings' Light/Dark/System picker and the sidebar's quick
 
 - Deploy (frontend host + backend host + cloud MySQL)
 - Rate limiting on login and a security-header layer
-- Mobile: Reminders and full Settings (change password, delete account) screens, a native deep-link back from the Gmail OAuth browser flow, a real audit log to back the application detail screen's Activity section, and dark mode
+- Mobile: paused (see above) — resume by chasing down the on-device bugs that stalled it, then Reminders and full Settings (change password, delete account) screens, a native deep-link back from the Gmail OAuth browser flow, a real audit log to back the application detail screen's Activity section, and dark mode
 - Later phase: RAG / evaluation harnesses

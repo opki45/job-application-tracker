@@ -1,5 +1,11 @@
 # Mobile UI Redesign — match `designs/mobile-view.png`
 
+> **Paused after Phase 13.** On-device testing surfaced real bugs that
+> weren't chased down before development was deferred to a future phase —
+> see `mobile/README.md`'s status note. Phases below are an accurate build
+> history up to that point, not a guarantee anything still works as
+> described.
+
 ## Context
 
 The mobile app (Core MVP, built earlier this session) works, but its UI was

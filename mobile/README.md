@@ -1,5 +1,14 @@
 # Landed — Mobile (Expo Go)
 
+> **Status: paused.** Development stopped here after hitting real on-device
+> bugs (layout content rendering under the iOS status bar/notch, among
+> others) that weren't tracked down before the decision was made to defer
+> the rest of this effort to a future phase. The code below is a real,
+> mostly-working app as of the last commit, but nothing past that point has
+> been re-verified — don't assume anything described here (including "fixed"
+> claims from earlier in [`PLAN.md`](PLAN.md)) is actually correct on a real
+> device until this is picked back up and re-tested.
+
 A React Native companion to the [web app](../client) and [API](../server), built with Expo Router. Same backend, same account — log in with the same email/password you use on the web.
 
 **Scope:** login/register, a home dashboard (stats with real per-status sparklines, quick-add, an inline review-queue preview), the full applications list, a dedicated application detail screen, the Gmail review queue, a Calendar month view, and an Analytics screen (status donut, applications-over-time line chart, source breakdown) — all built to match [`designs/mobile-view.png`](../designs/mobile-view.png). Reminders and full Settings (change password, delete account) are still web-only; the mobile "More" screen covers account basics (Gmail disconnect, logout) — see the root README's roadmap.
