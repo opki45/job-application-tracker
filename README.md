@@ -147,16 +147,19 @@ The dashboard's sidebar originally had nav items with nowhere to go (Application
 - **Calendar** — a month view plotting every application on its `date_applied`, colour-coded by status. No new backend — derived from data already there.
 - **Analytics** — a status funnel, an applications-over-time trend, and a Gmail-vs-manual split. Also fully derived from existing data; colours reuse the app's one reserved status palette (validated colourblind-safe via the dataviz skill's validator, not eyeballed).
 - **Reminders** — a genuinely new feature: its own table, optionally linked to a specific application (`ON DELETE SET NULL` if that application is later deleted, so the reminder survives).
-- **Settings** — Gmail connect/disconnect (moved here too, shared via `GmailContext` instead of re-fetched per page), change password, delete account (password + typed "DELETE" confirmation; cascades via the existing `ON DELETE CASCADE` foreign keys), and a decorative light/dark/system theme picker (no real dark theme exists yet).
+- **Settings** — Gmail connect/disconnect (moved here too, shared via `GmailContext` instead of re-fetched per page), change password, delete account (password + typed "DELETE" confirmation; cascades via the existing `ON DELETE CASCADE` foreign keys), and a real light/dark/system theme picker (see below — it's not decorative anymore).
 
 ## Mobile (Expo Go)
 
 A React Native companion app lives in [`mobile/`](mobile/README.md), UI-matched to [`designs/mobile-view.png`](designs/mobile-view.png): login/register, a home dashboard with real per-status sparklines, the full applications list, a dedicated application detail screen, the Gmail review queue, a Calendar month view, and an Analytics screen (status donut, trend line, source breakdown) — all against the same backend with no server changes. See that README for setup (you'll need your dev machine's LAN IP so a phone can reach the API) and the honest trade-offs: Gmail connect opens the existing web OAuth flow in the system browser (no native deep-link back into the app yet), and the application detail screen's "Activity" section is derived from existing timestamps rather than a real audit log.
 
+## Dark mode
+
+Real, not decorative: Settings' Light/Dark/System picker and the sidebar's quick toggle both drive one `ThemeContext`, persisted to `localStorage` and applied via a `data-theme` attribute on `<html>` (System instead relies purely on a `prefers-color-scheme` media query, so it also tracks a live OS-preference change without a reload). Every color in `index.css` runs through CSS custom properties — the light palette was already mostly tokenized, but ~99 hardcoded hex values (mostly repeated 2-8x each: the 5 status colors' pill/row tints, a success green, a danger-tint family, a purple brand-tint family, an amber warning-tint family, a few near-white hover greys) got consolidated into named tokens first, so the dark palette is a real second definition of the same design system, not a patchwork of overrides.
+
 ## Roadmap
 
 - Deploy (frontend host + backend host + cloud MySQL)
 - Rate limiting on login and a security-header layer
-- A real dark theme (the picker in Settings and the sidebar toggle are both decorative right now)
-- Mobile: Reminders and full Settings (change password, delete account) screens, a native deep-link back from the Gmail OAuth browser flow, a real audit log to back the application detail screen's Activity section
+- Mobile: Reminders and full Settings (change password, delete account) screens, a native deep-link back from the Gmail OAuth browser flow, a real audit log to back the application detail screen's Activity section, and dark mode
 - Later phase: RAG / evaluation harnesses

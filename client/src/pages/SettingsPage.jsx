@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
+import { useTheme } from '../ThemeContext';
 import { api } from '../api';
 import GmailConnect from '../components/GmailConnect';
 
@@ -57,9 +58,7 @@ function SettingsPage() {
     }
   }
 
-  // Decorative -- there's no dark theme built yet (the sidebar's own toggle
-  // is the same way). This just remembers the choice within the page.
-  const [theme, setTheme] = useState('light');
+  const { theme, setTheme } = useTheme();
 
   return (
     <>
@@ -80,7 +79,7 @@ function SettingsPage() {
 
       <div className="panel-card">
         <div className="panel-title">Appearance</div>
-        <p className="panel-subtitle">Light mode only for now -- dark mode is on the roadmap.</p>
+        <p className="panel-subtitle">System matches your OS/browser setting.</p>
         <div className="theme-options">
           {THEMES.map((t) => (
             <button

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { useTheme } from '../ThemeContext';
 import {
   HomeIcon,
   BriefcaseIcon,
@@ -11,6 +12,7 @@ import {
   BellIcon,
   GearIcon,
   SunIcon,
+  MoonIcon,
   TrendingUpIcon,
 } from './icons';
 
@@ -58,10 +60,12 @@ function Sidebar() {
 
   const [reviewQueueCount, setReviewQueueCount] = useState(0);
   const [hasActivity, setHasActivity] = useState(true);
-  // Purely a visual toggle (icon/label) -- there's no dark theme built yet,
-  // so this doesn't switch a real theme. It's here because the reference
-  // shows it as a persistent sidebar element.
-  const [light, setLight] = useState(true);
+  // A quick explicit light/dark flip (of whatever's actually showing right
+  // now, resolved -- so it does the right thing even if the current state
+  // came from 'system' rather than a prior explicit choice). The nuanced
+  // "match my OS" option lives on the Settings page's dedicated picker, not
+  // a single click here.
+  const { resolved, setTheme } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -111,8 +115,13 @@ function Sidebar() {
             </button>
           </div>
         ) : (
-          <button type="button" className="theme-toggle" onClick={() => setLight((v) => !v)}>
-            <SunIcon /> {light ? 'Light mode' : 'Dark mode'}
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setTheme(resolved === 'dark' ? 'light' : 'dark')}
+          >
+            {resolved === 'dark' ? <MoonIcon /> : <SunIcon />}
+            {resolved === 'dark' ? 'Dark mode' : 'Light mode'}
           </button>
         )}
       </div>

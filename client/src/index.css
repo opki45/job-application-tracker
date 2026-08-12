@@ -13,8 +13,61 @@
   --primary-hover: #4c45c9;
   --brand-grad: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
   --brand-tint: linear-gradient(135deg, #f2f0ff 0%, #faf1ff 100%);
+  /* The auth page's purple family had ~8 near-identical hand-picked hexes
+     (#f1f0f9, #fbfaff, #e6e1fc, #ece7fd, #e5e0fb, #e2ddfb, #d9d5fb, #cfc9f7)
+     scattered across badges/pills/borders/hovers -- never meaningfully
+     different design choices, just hand-variance accumulated over many
+     separate additions. Consolidated to 3 steps: solid (card backgrounds),
+     chip (badges needing more contrast against a solid backdrop), border. */
+  --brand-tint-solid: #f1f0f9;
+  --brand-tint-chip: #e6e1fc;
+  --brand-tint-border: #d9d5fb;
 
   --danger: #e5484d;
+  --danger-hover: #c93f3f;
+  --danger-tint: #fdeaea;
+  --danger-border: #f6d0d0;
+
+  /* Distinct from --status-offer's green: this is the review queue's Accept
+     button and the Gmail-connected indicator dot, not a status pill. */
+  --success: #16a34a;
+  --success-hover: #15803d;
+
+  /* The review queue's "status update" candidate card. */
+  --warning-tint: #fffcf5;
+  --warning-border: #fbe7c2;
+  --warning-text: #92650a;
+
+  /* The several near-white hover/badge backgrounds (#f1f2f7, #f4f4f8,
+     #f7f7fb, #f8f8fb) collapse into one token for the same reason as the
+     purple family above. */
+  --surface-soft: #f1f2f7;
+
+  /* Status colors per the design spec (designs/app-ui-design.png.png):
+     Applied/Interviewing/Offer/Rejected/Accepted. Each has two tint
+     strengths -- "tint" for pills/icon badges (more saturated), "row-tint"
+     for whole-row backgrounds (paler, so a full table row of color doesn't
+     overwhelm). Was already this systematic before, just not tokenized. */
+  --status-applied: #3b82f6;
+  --status-applied-tint: #eff6ff;
+  --status-applied-row-tint: #f7faff;
+  --status-interviewing: #f59e0b;
+  --status-interviewing-tint: #fffbeb;
+  --status-interviewing-row-tint: #fffbf1;
+  --status-offer: #10b981;
+  --status-offer-tint: #ecfdf5;
+  --status-offer-row-tint: #f2fdf8;
+  --status-rejected: #ef4444;
+  --status-rejected-tint: #fef2f2;
+  --status-rejected-row-tint: #fef5f5;
+  --status-accepted: #8b5cf6;
+  --status-accepted-tint: #f5f3ff;
+  --status-accepted-row-tint: #f8f6ff;
+
+  /* The auth page's decorative background -- white, deepening to violet
+     toward the bottom-right corner. A genuine one-off, not part of the
+     token families above; redefined for dark mode further down. */
+  --landing-bg: linear-gradient(128deg, #ffffff 0%, #ffffff 48%, #f4f0fd 62%, #e2d3f8 84%, #cfb2f2 100%);
 
   --radius: 14px;
   --radius-sm: 9px;
@@ -23,6 +76,133 @@
   --shadow-lg: 0 28px 60px -24px rgba(30, 27, 75, 0.5);
 
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ---------- Dark mode ----------
+   Two ways in: prefers-color-scheme (the "System" option -- guarded with
+   :not([data-theme="light"]) so an explicit light choice always wins over
+   the OS setting) and [data-theme="dark"] (an explicit choice, set by
+   ThemeContext.jsx on <html>, always wins over both). Every token above
+   gets redefined here; nothing is left to fall back to its light value by
+   accident. Status/brand/warning hues are lightened a notch from their
+   light-mode values (dark-on-dark reads muddy otherwise) but keep the same
+   hue identity, so a status pill stays recognizable switching themes. Tint
+   backgrounds (pastel in light mode) become low-opacity overlays of the
+   same hue instead of a literal pale hex, since a pastel doesn't read
+   against a dark surface. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0f1117;
+    --surface: #171a24;
+    --border: #2a2d3c;
+    --text: #eceef3;
+    --muted: #98a1b3;
+    --faint: #6b7386;
+
+    --primary: #8b7ff5;
+    --primary-hover: #a79cf8;
+    --brand-grad: linear-gradient(135deg, #7c76f0 0%, #b565f0 100%);
+    --brand-tint: linear-gradient(135deg, rgba(139, 127, 245, 0.14) 0%, rgba(181, 101, 240, 0.14) 100%);
+    --brand-tint-solid: rgba(139, 127, 245, 0.14);
+    --brand-tint-chip: rgba(139, 127, 245, 0.24);
+    --brand-tint-border: rgba(139, 127, 245, 0.4);
+
+    --danger: #f0696d;
+    --danger-hover: #f68c8f;
+    --danger-tint: rgba(229, 72, 77, 0.16);
+    --danger-border: rgba(229, 72, 77, 0.4);
+
+    --success: #34c759;
+    --success-hover: #4ade80;
+
+    --warning-tint: rgba(245, 158, 11, 0.14);
+    --warning-border: rgba(245, 158, 11, 0.38);
+    --warning-text: #f0b13a;
+
+    --surface-soft: #1d202c;
+
+    --status-applied: #6ba6f8;
+    --status-applied-tint: rgba(59, 130, 246, 0.16);
+    --status-applied-row-tint: rgba(59, 130, 246, 0.08);
+    --status-interviewing: #f6b13e;
+    --status-interviewing-tint: rgba(245, 158, 11, 0.16);
+    --status-interviewing-row-tint: rgba(245, 158, 11, 0.08);
+    --status-offer: #3fd39c;
+    --status-offer-tint: rgba(16, 185, 129, 0.16);
+    --status-offer-row-tint: rgba(16, 185, 129, 0.08);
+    --status-rejected: #f0696d;
+    --status-rejected-tint: rgba(239, 68, 68, 0.16);
+    --status-rejected-row-tint: rgba(239, 68, 68, 0.08);
+    --status-accepted: #a692f7;
+    --status-accepted-tint: rgba(139, 92, 246, 0.18);
+    --status-accepted-row-tint: rgba(139, 92, 246, 0.09);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+    --shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 28px 60px -24px rgba(0, 0, 0, 0.7);
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #0f1117;
+  --surface: #171a24;
+  --border: #2a2d3c;
+  --text: #eceef3;
+  --muted: #98a1b3;
+  --faint: #6b7386;
+
+  --primary: #8b7ff5;
+  --primary-hover: #a79cf8;
+  --brand-grad: linear-gradient(135deg, #7c76f0 0%, #b565f0 100%);
+  --brand-tint: linear-gradient(135deg, rgba(139, 127, 245, 0.14) 0%, rgba(181, 101, 240, 0.14) 100%);
+  --brand-tint-solid: rgba(139, 127, 245, 0.14);
+  --brand-tint-chip: rgba(139, 127, 245, 0.24);
+  --brand-tint-border: rgba(139, 127, 245, 0.4);
+
+  --danger: #f0696d;
+  --danger-hover: #f68c8f;
+  --danger-tint: rgba(229, 72, 77, 0.16);
+  --danger-border: rgba(229, 72, 77, 0.4);
+
+  --success: #34c759;
+  --success-hover: #4ade80;
+
+  --warning-tint: rgba(245, 158, 11, 0.14);
+  --warning-border: rgba(245, 158, 11, 0.38);
+  --warning-text: #f0b13a;
+
+  --surface-soft: #1d202c;
+
+  --status-applied: #6ba6f8;
+  --status-applied-tint: rgba(59, 130, 246, 0.16);
+  --status-applied-row-tint: rgba(59, 130, 246, 0.08);
+  --status-interviewing: #f6b13e;
+  --status-interviewing-tint: rgba(245, 158, 11, 0.16);
+  --status-interviewing-row-tint: rgba(245, 158, 11, 0.08);
+  --status-offer: #3fd39c;
+  --status-offer-tint: rgba(16, 185, 129, 0.16);
+  --status-offer-row-tint: rgba(16, 185, 129, 0.08);
+  --status-rejected: #f0696d;
+  --status-rejected-tint: rgba(239, 68, 68, 0.16);
+  --status-rejected-row-tint: rgba(239, 68, 68, 0.08);
+  --status-accepted: #a692f7;
+  --status-accepted-tint: rgba(139, 92, 246, 0.18);
+  --status-accepted-row-tint: rgba(139, 92, 246, 0.09);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 28px 60px -24px rgba(0, 0, 0, 0.7);
+}
+/* The decorative auth-page background (white -> violet in light mode) and
+   the avatar's white logo backdrop are genuine one-offs -- hand-tuned
+   separately here rather than forced through the token system, same as
+   they're hand-tuned in light mode. */
+:root[data-theme='dark'] {
+  --landing-bg: linear-gradient(128deg, #14141c 0%, #14141c 48%, #1f1a2e 62%, #2c2140 84%, #3a2856 100%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --landing-bg: linear-gradient(128deg, #14141c 0%, #14141c 48%, #1f1a2e 62%, #2c2140 84%, #3a2856 100%);
+  }
 }
 
 * {
@@ -148,7 +328,7 @@ button:disabled {
   border: 1px solid var(--border);
 }
 .btn-ghost:hover:not(:disabled) {
-  background: #f1f2f7;
+  background: var(--surface-soft);
   color: var(--text);
 }
 .btn-sm {
@@ -163,7 +343,7 @@ button:disabled {
   line-height: 1;
 }
 .btn-icon:hover:not(:disabled) {
-  background: #fdeaea;
+  background: var(--danger-tint);
   color: var(--danger);
 }
 .error {
@@ -178,8 +358,9 @@ button:disabled {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  /* White on the left, deepening to violet toward the bottom-right corner. */
-  background: linear-gradient(128deg, #ffffff 0%, #ffffff 48%, #f4f0fd 62%, #e2d3f8 84%, #cfb2f2 100%);
+  /* White on the left, deepening to violet toward the bottom-right corner
+     (dark: near-black deepening to a darker violet -- see --landing-bg). */
+  background: var(--landing-bg);
   position: relative;
 }
 .landing-nav {
@@ -251,7 +432,7 @@ button:disabled {
 }
 .auth-badge {
   display: inline-block;
-  background: #f1f0f9;
+  background: var(--brand-tint-solid);
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 600;
@@ -293,7 +474,7 @@ button:disabled {
   position: relative;
   display: flex;
   gap: 0.25rem;
-  background: #f1f0f9;
+  background: var(--brand-tint-solid);
   border-radius: 11px;
   padding: 0.3rem;
   margin-top: 1.6rem;
@@ -312,7 +493,7 @@ button:disabled {
   bottom: 0.3rem;
   background: var(--surface);
   border-radius: 8px;
-  border: 1px solid #d9d5fb;
+  border: 1px solid var(--brand-tint-border);
   box-shadow: var(--shadow-sm);
   transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -474,7 +655,7 @@ button:disabled {
   box-sizing: border-box;
 }
 .btn-google:hover:not(:disabled) {
-  background: #f8f8fb;
+  background: var(--surface-soft);
 }
 
 .auth-terms {
@@ -545,7 +726,7 @@ button:disabled {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #22c55e;
+  background: var(--success);
   margin-left: 0.15rem;
 }
 .preview-stats {
@@ -591,22 +772,22 @@ button:disabled {
   stroke: var(--primary);
 }
 .preview-stat-applied small {
-  color: #3b82f6;
+  color: var(--status-applied);
 }
 .preview-stat-applied .preview-spark polyline {
-  stroke: #3b82f6;
+  stroke: var(--status-applied);
 }
 .preview-stat-interviewing small {
-  color: #f59e0b;
+  color: var(--status-interviewing);
 }
 .preview-stat-interviewing .preview-spark polyline {
-  stroke: #f59e0b;
+  stroke: var(--status-interviewing);
 }
 .preview-stat-offer small {
-  color: #10b981;
+  color: var(--status-offer);
 }
 .preview-stat-offer .preview-spark polyline {
-  stroke: #10b981;
+  stroke: var(--status-offer);
 }
 
 .preview-list-head {
@@ -757,7 +938,7 @@ button:disabled {
 }
 .btn-logout:hover:not(:disabled) {
   color: var(--text);
-  background: #f1f2f7;
+  background: var(--surface-soft);
 }
 
 /* Shell: sidebar (left) + main content (right), below the topbar */
@@ -796,7 +977,7 @@ button:disabled {
   text-decoration: none;
 }
 .sidebar-item:hover {
-  background: #f4f4f8;
+  background: var(--surface-soft);
   color: var(--text);
 }
 .sidebar-item svg {
@@ -808,7 +989,7 @@ button:disabled {
 }
 .sidebar-badge {
   margin-left: auto;
-  background: #e6e1fc;
+  background: var(--brand-tint-chip);
   color: var(--primary);
   font-size: 0.72rem;
   font-weight: 800;
@@ -822,7 +1003,7 @@ button:disabled {
 }
 .upgrade-card {
   background: var(--brand-tint);
-  border: 1px solid #e2ddfb;
+  border: 1px solid var(--brand-tint-border);
   border-radius: var(--radius);
   padding: 1rem;
 }
@@ -863,7 +1044,7 @@ button:disabled {
   width: 100%;
 }
 .theme-toggle:hover:not(:disabled) {
-  background: #f7f7fb;
+  background: var(--surface-soft);
 }
 
 .main-content {
@@ -934,34 +1115,34 @@ button:disabled {
   stroke: var(--primary);
 }
 .stat-applied .stat-label {
-  color: #3b82f6;
+  color: var(--status-applied);
 }
 .stat-applied .stat-icon-badge {
-  background: #eff6ff;
-  color: #3b82f6;
+  background: var(--status-applied-tint);
+  color: var(--status-applied);
 }
 .stat-applied .stat-spark polyline {
-  stroke: #3b82f6;
+  stroke: var(--status-applied);
 }
 .stat-interviewing .stat-label {
-  color: #f59e0b;
+  color: var(--status-interviewing);
 }
 .stat-interviewing .stat-icon-badge {
-  background: #fffbeb;
-  color: #f59e0b;
+  background: var(--status-interviewing-tint);
+  color: var(--status-interviewing);
 }
 .stat-interviewing .stat-spark polyline {
-  stroke: #f59e0b;
+  stroke: var(--status-interviewing);
 }
 .stat-offer .stat-label {
-  color: #10b981;
+  color: var(--status-offer);
 }
 .stat-offer .stat-icon-badge {
-  background: #ecfdf5;
-  color: #10b981;
+  background: var(--status-offer-tint);
+  color: var(--status-offer);
 }
 .stat-offer .stat-spark polyline {
-  stroke: #10b981;
+  stroke: var(--status-offer);
 }
 @media (max-width: 900px) {
   .stats-grid {
@@ -1072,12 +1253,12 @@ button:disabled {
   padding: 0.9rem 1rem;
 }
 .candidate-card.tag-new {
-  background: #fbfaff;
-  border-color: #e5e0fb;
+  background: var(--brand-tint-solid);
+  border-color: var(--brand-tint-border);
 }
 .candidate-card.tag-update {
-  background: #fffcf5;
-  border-color: #fbe7c2;
+  background: var(--warning-tint);
+  border-color: var(--warning-border);
 }
 .candidate-tag {
   display: inline-block;
@@ -1090,12 +1271,12 @@ button:disabled {
   margin-bottom: 0.65rem;
 }
 .tag-new .candidate-tag {
-  background: #ece7fd;
+  background: var(--brand-tint-chip);
   color: var(--primary);
 }
 .tag-update .candidate-tag {
-  background: #fdecc8;
-  color: #92650a;
+  background: var(--warning-border);
+  color: var(--warning-text);
 }
 .candidate-body {
   display: flex;
@@ -1168,13 +1349,13 @@ button:disabled {
   gap: 0.5rem;
 }
 .btn-accept {
-  background: #16a34a;
+  background: var(--success);
   color: #fff;
   padding: 0.5rem 1rem;
   font-size: 0.85rem;
 }
 .btn-accept:hover:not(:disabled) {
-  background: #15803d;
+  background: var(--success-hover);
 }
 .btn-dismiss {
   background: var(--surface);
@@ -1184,7 +1365,7 @@ button:disabled {
   font-size: 0.85rem;
 }
 .btn-dismiss:hover:not(:disabled) {
-  background: #f7f7fb;
+  background: var(--surface-soft);
 }
 .candidate-error {
   margin-top: 0.5rem;
@@ -1284,6 +1465,10 @@ button:disabled {
   overflow: hidden;
 }
 .avatar.has-logo {
+  /* Intentionally always white, not var(--surface): company favicons are
+     PNGs designed against a light backdrop (many have transparent
+     backgrounds assuming one), so this stays a fixed light card regardless
+     of theme rather than going dark and making logos illegible. */
   background: #fff;
   border: 1px solid var(--border);
 }
@@ -1324,7 +1509,7 @@ button:disabled {
 }
 .notes-btn:hover:not(:disabled) {
   color: var(--muted);
-  background: #f1f2f7;
+  background: var(--surface-soft);
 }
 .notes-btn.has-notes {
   color: var(--primary);
@@ -1364,7 +1549,7 @@ button:disabled {
   font-weight: 600;
 }
 .actions-menu button:hover:not(:disabled) {
-  background: #fdeaea;
+  background: var(--danger-tint);
 }
 
 .app-notes {
@@ -1385,7 +1570,7 @@ button:disabled {
   gap: 0.6rem;
 }
 .notes-saved {
-  color: #15803d;
+  color: var(--success-hover);
   font-size: 0.85rem;
 }
 
@@ -1430,7 +1615,7 @@ button:disabled {
   font: inherit;
 }
 .calendar-cell:hover:not(.calendar-cell-empty) {
-  border-color: #cfc9f7;
+  border-color: var(--brand-tint-border);
   background: var(--brand-tint);
 }
 .calendar-cell-empty {
@@ -1468,19 +1653,19 @@ button:disabled {
   border-radius: 50%;
 }
 .calendar-dot.dot-applied {
-  background: #3b82f6;
+  background: var(--status-applied);
 }
 .calendar-dot.dot-interviewing {
-  background: #f59e0b;
+  background: var(--status-interviewing);
 }
 .calendar-dot.dot-offer {
-  background: #10b981;
+  background: var(--status-offer);
 }
 .calendar-dot.dot-rejected {
-  background: #ef4444;
+  background: var(--status-rejected);
 }
 .calendar-dot.dot-accepted {
-  background: #8b5cf6;
+  background: var(--status-accepted);
 }
 .calendar-more {
   font-size: 0.6rem;
@@ -1654,7 +1839,7 @@ button:disabled {
 }
 .reminder-row.overdue {
   border-left-color: var(--danger);
-  background: #fef5f5;
+  background: var(--danger-tint);
 }
 .reminder-row.done {
   opacity: 0.6;
@@ -1720,16 +1905,16 @@ button:disabled {
   font-weight: 600;
 }
 .theme-option:hover:not(:disabled) {
-  background: #f7f7fb;
+  background: var(--surface-soft);
 }
 .theme-option.active {
   background: var(--brand-tint);
   color: var(--primary);
-  border-color: #d9d5fb;
+  border-color: var(--brand-tint-border);
 }
 .danger-zone {
-  border-color: #f6d0d0;
-  background: #fffafa;
+  border-color: var(--danger-border);
+  background: var(--danger-tint);
 }
 .danger-zone .panel-title {
   color: var(--danger);
@@ -1739,7 +1924,7 @@ button:disabled {
   color: #fff;
 }
 .btn-danger:hover:not(:disabled) {
-  background: #c93f3f;
+  background: var(--danger-hover);
 }
 
 /* Status pills */
@@ -1761,46 +1946,46 @@ button:disabled {
    Accepted #8B5CF6. Pills use a light tint of each with the full-strength
    hue for text; row tints reuse the same hues at lower opacity. */
 .status-applied {
-  background: #eff6ff;
-  color: #3b82f6;
+  background: var(--status-applied-tint);
+  color: var(--status-applied);
 }
 .status-interviewing {
-  background: #fffbeb;
-  color: #f59e0b;
+  background: var(--status-interviewing-tint);
+  color: var(--status-interviewing);
 }
 .status-offer {
-  background: #ecfdf5;
-  color: #10b981;
+  background: var(--status-offer-tint);
+  color: var(--status-offer);
 }
 .status-rejected {
-  background: #fef2f2;
-  color: #ef4444;
+  background: var(--status-rejected-tint);
+  color: var(--status-rejected);
 }
 .status-accepted {
-  background: #f5f3ff;
-  color: #8b5cf6;
+  background: var(--status-accepted-tint);
+  color: var(--status-accepted);
 }
 
 /* Whole-row status tint (shared by dashboard rows and preview rows) */
 .row-applied {
-  border-left-color: #3b82f6;
-  background: #f7faff;
+  border-left-color: var(--status-applied);
+  background: var(--status-applied-row-tint);
 }
 .row-interviewing {
-  border-left-color: #f59e0b;
-  background: #fffbf1;
+  border-left-color: var(--status-interviewing);
+  background: var(--status-interviewing-row-tint);
 }
 .row-offer {
-  border-left-color: #10b981;
-  background: #f2fdf8;
+  border-left-color: var(--status-offer);
+  background: var(--status-offer-row-tint);
 }
 .row-rejected {
-  border-left-color: #ef4444;
-  background: #fef5f5;
+  border-left-color: var(--status-rejected);
+  background: var(--status-rejected-row-tint);
 }
 .row-accepted {
-  border-left-color: #8b5cf6;
-  background: #f8f6ff;
+  border-left-color: var(--status-accepted);
+  background: var(--status-accepted-row-tint);
 }
 
 .muted {

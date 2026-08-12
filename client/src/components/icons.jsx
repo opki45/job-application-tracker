@@ -219,6 +219,20 @@ export function SunIcon(props) {
   );
 }
 
+export function MoonIcon(props) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M16.5 12.4A6.8 6.8 0 0 1 7.6 3.5a6.8 6.8 0 1 0 8.9 8.9Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function TrendingUpIcon(props) {
   return (
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
