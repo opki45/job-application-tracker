@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useGmail } from '../GmailContext';
 import { colors, radius } from '../theme';
@@ -9,12 +10,15 @@ import { colors, radius } from '../theme';
 // mobile/PLAN.md), the "Landed" wordmark, and a Gmail status pill. The pill
 // is read-only once connected (matches the design, which never shows a
 // separate "connect" card once Gmail is linked); tapping it while
-// disconnected starts the connect flow directly, one tap instead of two.
+// disconnected starts the connect flow directly, one tap instead of two --
+// this is also now Home's ONLY connect entry point, see (app)/index.js's
+// comment on why its old duplicate "Connect Gmail" card was removed.
 export default function TopBar() {
   const gmail = useGmail();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, { paddingTop: insets.top + 8 }]}>
       <Pressable hitSlop={10} onPress={() => router.push('/analytics')}>
         <Ionicons name="menu-outline" size={24} color={colors.text} />
       </Pressable>
@@ -44,7 +48,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 8,
+    // paddingTop is set inline above from useSafeAreaInsets() -- the real
+    // status bar/notch height, not a guess.
     paddingBottom: 14,
   },
   brand: {

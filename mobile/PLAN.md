@@ -244,3 +244,35 @@ mobile/src/components/
       regenerated the QR code
 - [x] Updated `mobile/README.md` and root `README.md`
 - [x] Mark all `mobile/PLAN.md` checkboxes complete, commit, push
+
+## Phase 13 — Fix Home sizing (safe area) + redundant sections
+
+Root cause of "content hidden under the status bar/notch": `react-native-
+safe-area-context` was a dependency from the original scaffold but never
+actually mounted or used anywhere — every screen's header used a hardcoded
+`paddingTop` guess instead of the device's real inset. Also removed two
+pairs of genuinely redundant controls that both lived on Home at once
+(Connect Gmail: TopBar pill vs. a duplicate card; Add application: an
+inline form vs. the global `+` FAB) rather than restyling them.
+
+- [x] `SafeAreaProvider` mounted once in `app/_layout.js` (outermost)
+- [x] `TopBar.js` / `BottomTabBar.js` use real `useSafeAreaInsets()` instead
+      of hardcoded `paddingTop: 8` / `paddingBottom: 22` — fixes every
+      screen that uses them (Home, Applications, Calendar, Analytics, More)
+      in one place
+- [x] Same real-inset fix applied individually to the screens with their
+      own custom header: `application/[id].js`, `review-queue.js`,
+      `login.js`, `register.js`. `add-application.js` deliberately
+      untouched — it's a `presentation: 'modal'` screen, which iOS already
+      insets from the status bar itself; its existing fixed padding isn't
+      the same bug
+- [x] Removed Home's "Connect Gmail" card (same action + same visibility
+      condition as TopBar's pill, which is on every screen already)
+- [x] Removed Home's inline "Add an application" form and its now-dead
+      state/handler (`company`/`role`/`creating`/`formError`/
+      `handleCreate`) — the `+` FAB already opens a slightly more complete
+      version (has a Status field) from any screen including Home
+- [x] Verify: `npx expo export --platform ios` — clean, zero errors. Dev
+      server started and confirmed serving. **On-device check pending** —
+      same disclosure as every prior mobile round, no simulator/device in
+      this sandbox to confirm real iOS safe-area behavior

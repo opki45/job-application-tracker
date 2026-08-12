@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { router, usePathname } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 
@@ -25,10 +26,14 @@ const ALIAS = {
 
 export default function BottomTabBar() {
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const activeHref = ALIAS[pathname] || pathname;
 
   return (
-    <View style={styles.bar}>
+    // Real home-indicator inset (0 on an iPhone SE, ~34 on a Pro) with a
+    // sane floor so the bar never looks cramped on a device that has none,
+    // instead of the old flat 22px guess.
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) + 10 }]}>
       {ITEMS.map((item) => {
         if (item.key === 'add') {
           return (
@@ -64,7 +69,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-around',
     paddingTop: 8,
-    paddingBottom: 22,
+    // paddingBottom is set inline above from useSafeAreaInsets().
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,

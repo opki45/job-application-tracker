@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, AntDesign } from '@expo/vector-icons';
 import { useAuth } from '../src/AuthContext';
 import { colors, radius } from '../src/theme';
@@ -30,6 +31,7 @@ function notAvailable(feature) {
 
 export default function Login() {
   const { login } = useAuth();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -53,7 +55,10 @@ export default function Login() {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <WaveBackground />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 32 }]}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.brandRow}>
           <View style={styles.logoMark}>
             <Ionicons name="trending-up" size={20} color="#fff" />
@@ -152,6 +157,8 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+    // paddingTop is overridden inline above from useSafeAreaInsets(); this
+    // is just the fallback if that were ever omitted.
     paddingTop: 56,
     paddingBottom: 48,
   },

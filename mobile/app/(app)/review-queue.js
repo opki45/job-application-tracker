@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../src/api';
 import { useGmail } from '../../src/GmailContext';
@@ -13,6 +14,7 @@ import CandidateCard from '../../src/components/CandidateCard';
 // section, see (app)/index.js).
 export default function ReviewQueue() {
   const gmail = useGmail();
+  const insets = useSafeAreaInsets();
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -70,7 +72,7 @@ export default function ReviewQueue() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
@@ -133,7 +135,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 8,
+    // paddingTop is set inline above from useSafeAreaInsets().
     paddingBottom: 14,
   },
   headerTitle: {

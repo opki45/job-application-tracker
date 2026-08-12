@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../../src/api';
 import { colors, radius } from '../../../src/theme';
@@ -36,6 +37,7 @@ function formatDateTime(value) {
 // Context section for why a full per-status-change history isn't here.
 export default function ApplicationDetail() {
   const { id } = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const [app, setApp] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -122,7 +124,7 @@ export default function ApplicationDetail() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
@@ -221,7 +223,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 8,
+    // paddingTop is set inline above from useSafeAreaInsets().
     paddingBottom: 14,
   },
   headerTitle: {

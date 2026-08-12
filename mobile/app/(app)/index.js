@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   StyleSheet,
   ScrollView,
@@ -20,13 +19,17 @@ import TopBar from '../../src/components/TopBar';
 import BottomTabBar from '../../src/components/BottomTabBar';
 import CandidateCard from '../../src/components/CandidateCard';
 
-// Home/Dashboard, matching designs/mobile-view.png's screen 2: stats with
-// real sparklines, a quick-add form, and an inline review-queue preview
-// (same CandidateCard the dedicated /review-queue screen uses -- tapping
-// the section header pushes there for the full list). The Gmail card only
-// renders pre-connection; once connected there's nothing to show here
-// beyond the TopBar's status pill, matching every connected-state
-// screenshot in the design.
+// Home/Dashboard: stats with real sparklines + an inline review-queue
+// preview (same CandidateCard the dedicated /review-queue screen uses --
+// tapping the section header pushes there for the full list).
+//
+// Two things that used to live here were removed as pure redundancy, not
+// restyled: a "Connect Gmail" card (same action, same visibility condition
+// as TopBar's Gmail pill, which is visible on every screen anyway -- one
+// control, not two) and an inline "Add an application" form (same fields,
+// duplicated by BottomTabBar's global + FAB, which opens a slightly more
+// complete version -- it also has a Status field -- from any screen
+// including this one). See mobile/PLAN.md for the fuller writeup.
 export default function Home() {
   const gmail = useGmail();
 
@@ -35,11 +38,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-
-  const [company, setCompany] = useState('');
-  const [role, setRole] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [formError, setFormError] = useState('');
 
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
@@ -67,21 +65,6 @@ export default function Home() {
       gmail.refresh();
     }, [load])
   );
-
-  async function handleCreate() {
-    setFormError('');
-    setCreating(true);
-    try {
-      await api.post('/applications', { company, role });
-      setCompany('');
-      setRole('');
-      await load();
-    } catch (err) {
-      setFormError(err.message);
-    } finally {
-      setCreating(false);
-    }
-  }
 
   async function handleSync() {
     setSyncMessage('');
@@ -140,49 +123,6 @@ export default function Home() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {!gmail.loading && !gmail.connected && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Connect Gmail</Text>
-            <Text style={styles.cardSub}>
-              Automatically detect job application emails and add them to your review queue.
-            </Text>
-            <Pressable style={[styles.button, styles.buttonPrimary]} onPress={gmail.connect}>
-              <Text style={styles.buttonText}>Connect Gmail</Text>
-            </Pressable>
-            <Text style={styles.hint}>Opens in your browser -- come back here once you're done.</Text>
-          </View>
-        )}
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Add an application</Text>
-          <Text style={styles.cardSub}>Manually add a job to keep your search organized.</Text>
-          <Text style={styles.fieldLabel}>Company name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Datadog"
-            placeholderTextColor={colors.faint}
-            value={company}
-            onChangeText={setCompany}
-          />
-          <Text style={styles.fieldLabel}>Role</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Software Engineer"
-            placeholderTextColor={colors.faint}
-            value={role}
-            onChangeText={setRole}
-          />
-          {formError ? <Text style={styles.error}>{formError}</Text> : null}
-          <Pressable
-            style={[styles.button, styles.buttonPrimary, (creating || !company || !role) && styles.buttonDisabled]}
-            onPress={handleCreate}
-            disabled={creating || !company || !role}
-          >
-            <Text style={styles.buttonText}>{creating ? 'Adding...' : 'Add application'}</Text>
-            {!creating && <Ionicons name="add" size={16} color="#fff" />}
-          </Pressable>
-        </View>
-
         <View style={styles.sectionHeaderRow}>
           <Pressable onPress={() => router.push('/review-queue')} style={styles.sectionHeaderLink}>
             <Text style={styles.sectionTitle}>
@@ -240,63 +180,10 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 16,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: 16,
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: 4,
-  },
   cardSub: {
     color: colors.muted,
     fontSize: 13,
     marginBottom: 10,
-  },
-  hint: {
-    color: colors.faint,
-    fontSize: 12,
-    marginTop: 8,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.muted,
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: 12,
-    fontSize: 15,
-    color: colors.text,
-    marginBottom: 12,
-  },
-  button: {
-    flexDirection: 'row',
-    gap: 6,
-    borderRadius: radius.sm,
-    padding: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonPrimary: {
-    backgroundColor: colors.primary,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
