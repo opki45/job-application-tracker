@@ -2,6 +2,11 @@
 // directly, so the headers, JSON parsing, auth token, and error handling live
 // in a single spot.
 
+// In development this is empty, so requests go to "/api/..." and Vite's proxy
+// forwards them to localhost:3000. In production I set VITE_API_BASE_URL to my
+// deployed backend URL, so requests go straight there (no proxy exists in prod).
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
 // I keep the current token in a module variable. The auth context (next step)
 // sets it on login and clears it on logout.
 let authToken = null;
@@ -19,7 +24,7 @@ async function request(path, { method = 'GET', body } = {}) {
     headers.Authorization = `Bearer ${authToken}`;
   }
 
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,

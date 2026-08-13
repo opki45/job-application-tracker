@@ -1,0 +1,57 @@
+# Render Blueprint for the API. In the Render dashboard: New + -> Blueprint,
+# pick this repo, and Render reads this file automatically.
+#
+# Vars with `sync: false` are NOT stored here -- Render prompts for them once
+# in the dashboard during blueprint creation (or Environment tab afterwards).
+# See server/.env.example for what each one means.
+services:
+  - name: landed-api
+    type: web
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      # --- non-secret, safe to commit ---
+      - key: NODE_ENV
+        value: production
+      - key: JWT_EXPIRES_IN
+        value: 1d
+      - key: DB_PORT
+        value: 4000
+      - key: DB_SSL
+        value: true
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-flash-latest
+
+      # --- secrets / per-environment, filled in via the Render dashboard ---
+      - key: JWT_SECRET
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_LOGIN_REDIRECT_URI
+        sync: false
+      - key: TOKEN_ENC_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
