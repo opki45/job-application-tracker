@@ -20,6 +20,10 @@ const pool = mysql.createPool({
   // objects. That stops the day shifting across timezones when I send it to the
   // frontend as JSON.
   dateStrings: true,
+
+  // Managed hosts like TiDB Cloud require a TLS connection. I enable it via
+  // DB_SSL=true in production; locally it stays off.
+  ssl: config.db.ssl ? { minVersion: 'TLSv1.2', rejectUnauthorized: true } : undefined,
 });
 
 module.exports = pool;
