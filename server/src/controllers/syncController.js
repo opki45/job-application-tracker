@@ -141,6 +141,14 @@ async function syncGmail(req, res, next) {
     const messageIds = await gmailClient.listMessageIds(gmail);
     const unseenIds = await processedEmailModel.filterUnprocessed(userId, messageIds);
 
+    // Gemini's free tier is paced to ~1 call per ~6.5s (see extractApplication.js),
+    // so working through a big backlog in one sync would turn into a multi-minute
+    // HTTP request -- which Render/the browser would likely time out on anyway.
+    // I cap LLM calls per invocation and leave the rest genuinely untouched (not
+    // marked processed), so the next Sync Gmail click just picks up where this
+    // one stopped.
+    const MAX_LLM_CALLS_PER_SYNC = 8;
+    let llmCallsMade = 0;
     let shortlistedCount = 0;
     let candidatesCreated = 0;
     for (const id of unseenIds) {
@@ -150,7 +158,10 @@ async function syncGmail(req, res, next) {
         await processedEmailModel.markProcessed(userId, id);
         continue;
       }
+      if (llmCallsMade >= MAX_LLM_CALLS_PER_SYNC) break;
+
       shortlistedCount += 1;
+      llmCallsMade += 1;
       const { candidateCreated } = await processShortlistedMessage(
         userId,
         gmail,

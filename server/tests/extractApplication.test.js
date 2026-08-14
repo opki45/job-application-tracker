@@ -162,4 +162,70 @@ describe('extractApplication (gemini provider)', () => {
     config.llm.geminiApiKey = '';
     await expect(extractApplication('...')).rejects.toThrow(/GEMINI_API_KEY/);
   });
+
+  test('a 429 is retried once after honoring Retry-After, rather than failing immediately', async () => {
+    // Real cause of the "sync does nothing" bug in prod: the free Gemini tier
+    // rate-limits around 10 req/min and the sync loop used to hammer it with
+    // no pacing, so every call 429'd. This is the one-retry safety net for
+    // whatever gets through the pacing in extractApplication.js/callGemini
+    // and still gets rate-limited.
+    jest.useFakeTimers();
+    config.llm.provider = 'gemini';
+    config.llm.geminiApiKey = 'test-key';
+
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce({ ok: false, status: 429, headers: { get: () => '1' } })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      is_job_related: true,
+                      company: 'Ramp',
+                      role: 'Software Engineer',
+                      status: 'applied',
+                      confidence: 0.7,
+                    }),
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      });
+
+    const promise = extractApplication('...');
+    await jest.advanceTimersByTimeAsync(20000); // flush the Retry-After wait
+    const result = await promise;
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(result.company).toBe('Ramp');
+
+    config.llm.geminiApiKey = '';
+    jest.useRealTimers();
+  });
+
+  test('throws (does not silently swallow) a second consecutive 429', async () => {
+    jest.useFakeTimers();
+    config.llm.provider = 'gemini';
+    config.llm.geminiApiKey = 'test-key';
+
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({ ok: false, status: 429, headers: { get: () => null } });
+
+    const promise = extractApplication('...');
+    const assertion = expect(promise).rejects.toThrow(/Gemini request failed: 429/);
+    await jest.advanceTimersByTimeAsync(20000);
+    await assertion;
+
+    config.llm.geminiApiKey = '';
+    jest.useRealTimers();
+  });
 });
