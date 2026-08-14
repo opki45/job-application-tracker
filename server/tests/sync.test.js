@@ -312,6 +312,38 @@ describe('POST /api/sync/gmail', () => {
     expect(processedRows.map((r) => r.gmail_message_id)).toEqual(['m1']);
   });
 
+  test('caps LLM calls per sync so a big backlog is worked through across multiple syncs', async () => {
+    // Real-world trigger: a first-ever sync against 100 scanned messages
+    // shortlisted 34 of them. At the pacing extractApplication.js needs to
+    // stay under Gemini's free-tier rate limit, running all 34 in one HTTP
+    // request would take minutes and likely time out. The cap keeps one sync
+    // bounded and leaves the rest genuinely unprocessed for the next click.
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+
+    const ids = Array.from({ length: 10 }, (_, i) => `m${i + 1}`);
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    gmailClient.listMessageIds.mockResolvedValue(ids);
+    gmailClient.getMessageSummary.mockImplementation(async (_gmail, id) =>
+      summary(id, { subject: `Your application to Some Company (${id})` })
+    );
+    gmailClient.getMessageBody.mockResolvedValue('body text');
+    extractApplication.mockResolvedValue(JOB_RELATED);
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.shortlisted).toBe(8); // capped, not all 10
+    expect(extractApplication).toHaveBeenCalledTimes(8);
+
+    // The 2 left over aren't marked processed -- the next sync picks them up.
+    const [processedRows] = await pool.query(
+      'SELECT gmail_message_id FROM processed_emails WHERE user_id = ?',
+      [userId]
+    );
+    expect(processedRows).toHaveLength(8);
+  });
+
   test('persists a rotated access token when googleapis refreshes one mid-sync', async () => {
     const { token, userId } = await createUser();
     await connectGmail(userId);

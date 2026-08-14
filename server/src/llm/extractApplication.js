@@ -58,12 +58,28 @@ async function callOllama(emailText) {
   return data.response;
 }
 
-async function callGemini(emailText) {
-  if (!config.llm.geminiApiKey) {
-    throw new Error('GEMINI_API_KEY is not set');
-  }
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// The free Gemini tier is rate-limited to around 10 requests/minute. The sync
+// pipeline calls this once per shortlisted email in a tight loop, so without
+// pacing it blows through that limit almost immediately and every call after
+// the first few 429s. I track the last call time across invocations (this
+// module stays loaded for the life of the process) and wait out whatever's
+// left of the minimum gap before firing the next one.
+const GEMINI_MIN_INTERVAL_MS = 6500;
+let lastGeminiCallAt = 0;
+
+async function throttleGemini() {
+  const wait = lastGeminiCallAt + GEMINI_MIN_INTERVAL_MS - Date.now();
+  if (wait > 0) await sleep(wait);
+  lastGeminiCallAt = Date.now();
+}
+
+async function requestGemini(emailText) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.llm.geminiModel}:generateContent?key=${config.llm.geminiApiKey}`;
-  const res = await fetch(url, {
+  return fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -71,6 +87,29 @@ async function callGemini(emailText) {
       generationConfig: { responseMimeType: 'application/json', temperature: 0 },
     }),
   });
+}
+
+async function callGemini(emailText) {
+  if (!config.llm.geminiApiKey) {
+    throw new Error('GEMINI_API_KEY is not set');
+  }
+
+  await throttleGemini();
+  let res = await requestGemini(emailText);
+
+  // A 429 can still happen even with pacing (e.g. a burst of activity from
+  // another sync). Google returns a Retry-After header on rate-limit
+  // responses -- honor it (capped, so one bad header can't stall a sync for
+  // minutes) and try exactly once more before giving up to the caller, which
+  // leaves the message unprocessed for the next sync to retry.
+  if (res.status === 429) {
+    const retryAfterSec = Number(res.headers.get('retry-after'));
+    const wait = Number.isFinite(retryAfterSec) ? Math.min(retryAfterSec * 1000, 15000) : 10000;
+    await sleep(wait);
+    lastGeminiCallAt = Date.now();
+    res = await requestGemini(emailText);
+  }
+
   if (!res.ok) {
     throw new Error(`Gemini request failed: ${res.status}`);
   }
