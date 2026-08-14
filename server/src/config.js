@@ -42,7 +42,15 @@ const config = {
     // names get deprecated/removed fairly quickly, and I'd rather track
     // Google's current recommended flash model than have this silently 404
     // again later.
-    geminiModel: process.env.GEMINI_MODEL || 'gemini-flash-latest',
+    //
+    // Specifically the *lite* alias, not plain 'gemini-flash-latest': I found
+    // in prod that 'gemini-flash-latest' currently resolves to a model with a
+    // free-tier quota of just 20 requests/DAY, which a single sync's worth of
+    // shortlisted emails burns through immediately. 'gemini-flash-lite-latest'
+    // gets the normal free-tier allowance (15 requests/minute, no tiny daily
+    // cap) -- and extraction from a single email is exactly the lightweight,
+    // high-volume classification job the lite tier is meant for.
+    geminiModel: process.env.GEMINI_MODEL || 'gemini-flash-lite-latest',
   },
   db: {
     host: process.env.DB_HOST || 'localhost',
