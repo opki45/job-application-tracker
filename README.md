@@ -2,7 +2,7 @@
 
 Landed is a full-stack web app for tracking job applications through their lifecycle — applied, interviewing, offer, rejected, accepted. I built it end to end to turn a scattered job search into one clean, organised dashboard.
 
-**Live demo:** _add your deployed URL here_
+**Live demo:** https://job-application-tracker-two-hazel.vercel.app/login
 
 ## Tech stack
 
