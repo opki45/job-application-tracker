@@ -344,6 +344,35 @@ describe('POST /api/sync/gmail', () => {
     expect(processedRows).toHaveLength(8);
   });
 
+  test('an expired/revoked Gmail grant (invalid_grant) clears the connection and returns a clean 400, not a 500', async () => {
+    // Reproduces a real prod failure: Google OAuth Testing mode caps refresh
+    // tokens at 7 days, so a connection older than that starts failing every
+    // refresh with invalid_grant. Confirmed against Render's actual error
+    // shape for this (a gaxios error with response.data.error).
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    const grantError = new Error('invalid_grant');
+    grantError.response = { data: { error: 'invalid_grant', error_description: 'Bad Request' } };
+    gmailClient.listMessageIds.mockRejectedValue(grantError);
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/reconnect/i);
+
+    // The dead connection is gone -- /status should now report disconnected
+    // rather than the client hitting the same 500 forever.
+    const after = await oauthAccountModel.findAccount(userId, 'google');
+    expect(after).toBeNull();
+
+    const statusRes = await request(app)
+      .get('/api/integrations/gmail/status')
+      .set('Authorization', `Bearer ${token}`);
+    expect(statusRes.body.connected).toBe(false);
+  });
+
   test('persists a rotated access token when googleapis refreshes one mid-sync', async () => {
     const { token, userId } = await createUser();
     await connectGmail(userId);

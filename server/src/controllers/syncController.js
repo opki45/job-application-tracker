@@ -10,6 +10,20 @@ const { findMatchingApplication, isForwardMove } = require('../reconcile');
 
 const PROVIDER = 'google';
 
+// Google rejects a refresh_token with invalid_grant once it's dead -- most
+// commonly here because the OAuth consent screen is still in Testing mode,
+// which caps refresh tokens at 7 days regardless of how recently they were
+// used. gaxios/googleapis surfaces this a few different ways depending on
+// where in the request it fails, so I check the shapes I've actually seen
+// rather than relying on one.
+function isExpiredGrantError(err) {
+  return (
+    err?.response?.data?.error === 'invalid_grant' ||
+    err?.cause?.message === 'invalid_grant' ||
+    err?.message === 'invalid_grant'
+  );
+}
+
 // Gmail's Date header is RFC 2822 (e.g. "Mon, 10 Aug 2026 00:00:00 +0000"),
 // one of the formats JS's Date constructor is spec-guaranteed to parse. I
 // store just the date part -- a DATE column, not a DATETIME -- since that's
@@ -179,6 +193,14 @@ async function syncGmail(req, res, next) {
 
     return res.json({ scanned: messageIds.length, shortlisted: shortlistedCount, candidates: candidatesCreated });
   } catch (err) {
+    if (isExpiredGrantError(err)) {
+      // The stored connection is unusable and re-authorizing (not retrying)
+      // is the only way forward -- delete it so /status correctly reports
+      // "not connected" and the client's normal "connect Gmail" flow is what
+      // the user sees next, instead of a generic 500 with no way out.
+      await oauthAccountModel.deleteAccount(req.user.id, PROVIDER);
+      return res.status(400).json({ error: 'Your Gmail connection has expired. Please reconnect Gmail.' });
+    }
     next(err);
   }
 }
