@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { API_BASE } from '../api';
 import AuthLayout from '../components/AuthLayout';
 import { MailIcon, LockIcon, EyeIcon, EyeOffIcon, ArrowRightIcon, GoogleIcon } from '../components/icons';
 
@@ -96,7 +97,7 @@ function Register() {
       </div>
 
       {/* See the matching comment on Login.jsx's Google link. */}
-      <a href="/api/auth/google" className="btn-google">
+      <a href={`${API_BASE}/api/auth/google`} className="btn-google">
         <GoogleIcon /> Continue with Google
       </a>
 
