@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { API_BASE } from '../api';
 import AuthLayout from '../components/AuthLayout';
 import { MailIcon, LockIcon, EyeIcon, EyeOffIcon, ArrowRightIcon, GoogleIcon } from '../components/icons';
 
@@ -139,12 +140,11 @@ function Login() {
         <span>or continue with</span>
       </div>
 
-      {/* A plain relative URL -- this is a full page navigation (not a
-          fetch), so Vite's dev proxy forwards it to the backend the same
-          way it does api.js's requests. In a real (non-proxied) deployment
-          this needs the deployed backend's origin prefixed, same as
-          api.js's requests will. */}
-      <a href="/api/auth/google" className="btn-google" aria-disabled={googleBusy}>
+      {/* A full page navigation (not a fetch), so Vite's dev proxy handles
+          it in dev the same way it does api.js's requests. In production
+          there's no proxy, so this needs the deployed backend's origin
+          prefixed explicitly -- same API_BASE api.js's requests use. */}
+      <a href={`${API_BASE}/api/auth/google`} className="btn-google" aria-disabled={googleBusy}>
         <GoogleIcon /> {googleBusy ? 'Signing in...' : 'Continue with Google'}
       </a>
 
