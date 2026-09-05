@@ -23,20 +23,33 @@ function normalize(str) {
     .replace(/\s+/g, ' ');
 }
 
-// Finds an existing application with the same normalized company AND role,
-// per docs/PHASE2.md. Returns null (rather than guessing) if either side of
-// the extraction is missing -- an extraction with no company/role can't be
-// meaningfully matched against anything.
+// Finds an existing application (or pending candidate -- same shape, see
+// syncController.js) with the same normalized company AND role. Returns null
+// (rather than guessing) if company is missing -- there's nothing to match
+// against at all.
+//
+// When role IS present, it must match exactly (normalized) -- I never want
+// to silently fold "Software Engineer" and "Data Engineer" at the same
+// company into one row.
+//
+// When role is MISSING on this extraction (common on short status-update
+// emails like an interview invite that never restates the job title), I fall
+// back to company alone -- but only when there's exactly ONE existing
+// entry at that company. Real users apply to more than one role at the same
+// company (this app's own dogfood data has three at once), so with more
+// than one candidate I refuse to guess which one a roleless update is about
+// rather than risk silently updating the wrong one.
 function findMatchingApplication(applications, { company, role }) {
   const normCompany = normalize(company);
-  const normRole = normalize(role);
-  if (!normCompany || !normRole) return null;
+  if (!normCompany) return null;
 
-  return (
-    applications.find(
-      (app) => normalize(app.company) === normCompany && normalize(app.role) === normRole
-    ) || null
-  );
+  const sameCompany = applications.filter((app) => normalize(app.company) === normCompany);
+
+  const normRole = normalize(role);
+  if (normRole) {
+    return sameCompany.find((app) => normalize(app.role) === normRole) || null;
+  }
+  return sameCompany.length === 1 ? sameCompany[0] : null;
 }
 
 // True only if newStatus is strictly later than currentStatus in the order

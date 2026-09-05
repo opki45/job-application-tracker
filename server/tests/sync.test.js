@@ -344,6 +344,107 @@ describe('POST /api/sync/gmail', () => {
     expect(processedRows).toHaveLength(8);
   });
 
+  test('reconciliation: a second email about a job still sitting unreviewed in the queue merges in, instead of duplicating', async () => {
+    // Reproduces a real bug found in prod: "thank you for applying" then an
+    // interview invite for the same job, both arriving before the user has
+    // accepted the first candidate. Previously this created two separate
+    // candidates because matching only ever checked the applications table.
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    gmailClient.listMessageIds.mockResolvedValue(['m1', 'm2']);
+    gmailClient.getMessageSummary.mockImplementation(async (_gmail, id) =>
+      summary(id, { subject: id === 'm1' ? 'Your application to Some Company' : 'Interview invitation' })
+    );
+    gmailClient.getMessageBody.mockResolvedValue('body text');
+    extractApplication
+      .mockResolvedValueOnce({ ...JOB_RELATED, status: 'applied' }) // m1
+      .mockResolvedValueOnce({ ...JOB_RELATED, status: 'interviewing', confidence: 0.85 }); // m2
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.candidates).toBe(1); // only ONE candidate created
+    expect(res.body.candidatesUpdated).toBe(1); // the second email merged into it
+
+    const [rows] = await pool.query(
+      'SELECT * FROM candidates WHERE user_id = ? ORDER BY id',
+      [userId]
+    );
+    expect(rows).toHaveLength(1); // not two
+    expect(rows[0].status).toBe('interviewing'); // reflects the LATER email
+    expect(rows[0].source_message_id).toBe('m2'); // updated to the message that moved it forward
+
+    // Both messages are marked processed even though only one candidate row exists.
+    const [processedRows] = await pool.query(
+      'SELECT gmail_message_id FROM processed_emails WHERE user_id = ? ORDER BY gmail_message_id',
+      [userId]
+    );
+    expect(processedRows.map((r) => r.gmail_message_id)).toEqual(['m1', 'm2']);
+  });
+
+  test('reconciliation: a roleless status update merges by company alone when only one candidate is pending there', async () => {
+    // Reproduces the other real prod bug: an interview-invite email that
+    // never restates the job title. Previously role-less extractions never
+    // matched anything at all, so this always duplicated.
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    gmailClient.listMessageIds.mockResolvedValue(['m1', 'm2']);
+    gmailClient.getMessageSummary.mockImplementation(async (_gmail, id) =>
+      summary(id, { subject: id === 'm1' ? 'Your application to Some Company' : 'Interview update' })
+    );
+    gmailClient.getMessageBody.mockResolvedValue('body text');
+    extractApplication
+      .mockResolvedValueOnce({ ...JOB_RELATED, status: 'applied' }) // m1: has a role
+      .mockResolvedValueOnce({
+        is_job_related: true,
+        company: 'Some Company',
+        role: null, // m2: doesn't restate the role, same as the real Morrisons case
+        status: 'interviewing',
+        confidence: 0.85,
+      });
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.candidates).toBe(1);
+    expect(res.body.candidatesUpdated).toBe(1);
+
+    const [rows] = await pool.query('SELECT * FROM candidates WHERE user_id = ?', [userId]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe('interviewing');
+    // The role from m1 is preserved, not blanked out by m2's null.
+    expect(rows[0].role).toBe('Graduate Engineer');
+  });
+
+  test('reconciliation: a non-forward second email on a pending candidate merges nothing, just marks processed', async () => {
+    const { token, userId } = await createUser();
+    await connectGmail(userId);
+
+    gmailClient.createClient.mockReturnValue(FAKE_GMAIL);
+    gmailClient.listMessageIds.mockResolvedValue(['m1', 'm2']);
+    gmailClient.getMessageSummary.mockImplementation(async (_gmail, id) =>
+      summary(id, { subject: id === 'm1' ? 'Interview invitation' : 'Your application to Some Company' })
+    );
+    gmailClient.getMessageBody.mockResolvedValue('body text');
+    extractApplication
+      .mockResolvedValueOnce({ ...JOB_RELATED, status: 'interviewing' }) // m1
+      .mockResolvedValueOnce({ ...JOB_RELATED, status: 'applied' }); // m2: restates an earlier stage
+
+    const res = await request(app).post('/api/sync/gmail').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.candidates).toBe(1);
+    expect(res.body.candidatesUpdated).toBe(0);
+
+    const [rows] = await pool.query('SELECT * FROM candidates WHERE user_id = ?', [userId]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe('interviewing'); // unchanged by the backward-looking m2
+  });
+
   test('an expired/revoked Gmail grant (invalid_grant) clears the connection and returns a clean 400, not a 500', async () => {
     // Reproduces a real prod failure: Google OAuth Testing mode caps refresh
     // tokens at 7 days, so a connection older than that starts failing every
