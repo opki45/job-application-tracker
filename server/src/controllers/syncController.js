@@ -78,12 +78,22 @@ function makeTokenRefreshHandler(userId) {
 //   - job-related, matches an application, but NOT a forward move (same
 //     stage restated, or a status this ordering can't place) -> nothing to
 //     propose. Mark processed, drop.
+//   - job-related, matches a candidate ALREADY sitting in the review queue
+//     (not yet accepted/dismissed) -> merge into that candidate in place
+//     instead of proposing a second one. This is the common real case: an
+//     "application received" email and an interview invite both land before
+//     the user has reviewed the first -- see mergeIntoPendingCandidate.
 // IMPORTANT: an infrastructure failure (Ollama down, bad response) is left
 // UNprocessed on purpose -- see the note on extractApplication() for why:
 // "couldn't reach the LLM" must never be recorded the same way as "the LLM
 // looked at this and it's not job-related", or a temporary outage would
 // permanently drop mail that was never actually evaluated.
-async function processShortlistedMessage(userId, gmail, summary, existingApplications) {
+//
+// pendingCandidates is mutated in place (a new candidate is pushed onto it,
+// a merged one has its fields updated) so later messages in the SAME sync
+// run also reconcile correctly against each other, not just against what
+// was already in the review queue when the sync started.
+async function processShortlistedMessage(userId, gmail, summary, existingApplications, pendingCandidates) {
   let extraction;
   try {
     const body = await gmailClient.getMessageBody(gmail, summary.id);
@@ -99,12 +109,42 @@ async function processShortlistedMessage(userId, gmail, summary, existingApplica
     return { candidateCreated: false };
   }
 
-  const matched = findMatchingApplication(existingApplications, {
+  // Pending candidates take priority over the applications table: one still
+  // awaiting review reflects a MORE RECENT known status than applications
+  // (which only ever changes when a candidate is accepted), so if this
+  // company/role already has one sitting in the queue, that's the state to
+  // reconcile against.
+  const matchedCandidate = findMatchingApplication(pendingCandidates, {
     company: extraction.company,
     role: extraction.role,
   });
 
-  if (matched && !isForwardMove(matched.status, extraction.status)) {
+  if (matchedCandidate) {
+    if (!isForwardMove(matchedCandidate.status, extraction.status)) {
+      await processedEmailModel.markProcessed(userId, summary.id);
+      return { candidateCreated: false };
+    }
+    await candidateModel.mergeIntoPendingCandidate(userId, matchedCandidate.id, {
+      company: extraction.company,
+      role: extraction.role,
+      status: extraction.status,
+      confidence: extraction.confidence,
+      sourceMessageId: summary.id,
+      emailDate: parseEmailDate(summary.date),
+    });
+    matchedCandidate.status = extraction.status;
+    matchedCandidate.company = matchedCandidate.company || extraction.company;
+    matchedCandidate.role = matchedCandidate.role || extraction.role;
+    await processedEmailModel.markProcessed(userId, summary.id);
+    return { candidateCreated: false, candidateUpdated: true };
+  }
+
+  const matchedApplication = findMatchingApplication(existingApplications, {
+    company: extraction.company,
+    role: extraction.role,
+  });
+
+  if (matchedApplication && !isForwardMove(matchedApplication.status, extraction.status)) {
     // Matches something the user already has, but doesn't move it forward
     // (a re-confirmation of the same stage, or a status this ordering can't
     // place). Nothing new to propose.
@@ -112,14 +152,23 @@ async function processShortlistedMessage(userId, gmail, summary, existingApplica
     return { candidateCreated: false };
   }
 
-  await candidateModel.createCandidate(userId, {
+  const created = await candidateModel.createCandidate(userId, {
     sourceMessageId: summary.id,
     company: extraction.company,
     role: extraction.role,
     status: extraction.status,
     confidence: extraction.confidence,
-    matchedApplicationId: matched ? matched.id : null,
+    matchedApplicationId: matchedApplication ? matchedApplication.id : null,
     emailDate: parseEmailDate(summary.date),
+  });
+  // Register it so a later message in this same sync (or a future one, once
+  // it's reloaded fresh) reconciles against it instead of duplicating it.
+  pendingCandidates.push({
+    id: created.id,
+    company: created.company,
+    role: created.role,
+    status: created.status,
+    matched_application_id: created.matched_application_id,
   });
   await processedEmailModel.markProcessed(userId, summary.id);
   return { candidateCreated: true };
@@ -151,6 +200,12 @@ async function syncGmail(req, res, next) {
     // applications (that only happens later, when a candidate is accepted),
     // so the set of existing applications can't change mid-sync.
     const existingApplications = await applicationModel.findApplications(userId);
+    // Unlike existingApplications, THIS list does change mid-sync -- new
+    // entries are pushed and matched ones updated in place by
+    // processShortlistedMessage, so two emails about the same not-yet-
+    // reviewed job in one backlog reconcile against each other instead of
+    // both becoming separate candidates.
+    const pendingCandidates = await candidateModel.findPendingCandidates(userId);
 
     const messageIds = await gmailClient.listMessageIds(gmail);
     const unseenIds = await processedEmailModel.filterUnprocessed(userId, messageIds);
@@ -165,6 +220,7 @@ async function syncGmail(req, res, next) {
     let llmCallsMade = 0;
     let shortlistedCount = 0;
     let candidatesCreated = 0;
+    let candidatesUpdated = 0;
     for (const id of unseenIds) {
       const summary = await gmailClient.getMessageSummary(gmail, id);
       if (!isLikelyJobRelated(summary)) {
@@ -176,22 +232,29 @@ async function syncGmail(req, res, next) {
 
       shortlistedCount += 1;
       llmCallsMade += 1;
-      const { candidateCreated } = await processShortlistedMessage(
+      const { candidateCreated, candidateUpdated } = await processShortlistedMessage(
         userId,
         gmail,
         summary,
-        existingApplications
+        existingApplications,
+        pendingCandidates
       );
       if (candidateCreated) candidatesCreated += 1;
+      if (candidateUpdated) candidatesUpdated += 1;
     }
 
     console.log(
       `Gmail sync for user ${userId}: ${messageIds.length} scanned, ` +
         `${messageIds.length - unseenIds.length} already processed, ${shortlistedCount} shortlisted, ` +
-        `${candidatesCreated} candidates created`
+        `${candidatesCreated} candidates created, ${candidatesUpdated} merged into existing candidates`
     );
 
-    return res.json({ scanned: messageIds.length, shortlisted: shortlistedCount, candidates: candidatesCreated });
+    return res.json({
+      scanned: messageIds.length,
+      shortlisted: shortlistedCount,
+      candidates: candidatesCreated,
+      candidatesUpdated,
+    });
   } catch (err) {
     if (isExpiredGrantError(err)) {
       // The stored connection is unusable and re-authorizing (not retrying)

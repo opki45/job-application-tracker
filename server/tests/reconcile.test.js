@@ -39,9 +39,26 @@ describe('findMatchingApplication', () => {
     expect(match).toBeNull();
   });
 
-  test('returns null rather than guessing when company or role is missing', () => {
+  test('returns null rather than guessing when company is missing entirely', () => {
     expect(findMatchingApplication(applications, { company: null, role: 'AI Engineer' })).toBeNull();
-    expect(findMatchingApplication(applications, { company: 'Wayve', role: null })).toBeNull();
+  });
+
+  test('falls back to company alone when role is missing AND there is exactly one match at that company', () => {
+    // The real-world case this exists for: a short interview-invite email
+    // that names the company but never restates the job title.
+    const match = findMatchingApplication(applications, { company: 'Wayve', role: null });
+    expect(match?.id).toBe(2);
+  });
+
+  test('refuses to guess on a roleless extraction when MULTIPLE entries share that company', () => {
+    // Confirmed against real prod data: a user with e.g. three live JPMorgan
+    // applications at once. A roleless update must not silently land on the
+    // wrong one.
+    const multiRole = [
+      ...applications,
+      { id: 3, company: 'Wayve', role: 'Backend Engineer', status: 'applied' },
+    ];
+    expect(findMatchingApplication(multiRole, { company: 'Wayve', role: null })).toBeNull();
   });
 });
 
