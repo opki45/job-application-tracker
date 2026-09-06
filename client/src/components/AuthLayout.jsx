@@ -34,6 +34,13 @@ function AuthLayout({ title, titleAccent, subtitle, navPrompt, navTo, navLabel, 
       <nav className="landing-nav">
         <Logo />
         <div className="landing-nav-right">
+          {/* For anyone who doesn't want to register or use Google (a
+              recruiter clicking in from a CV, say) -- straight into a
+              seeded, auto-reset demo account, no account of their own
+              needed. See DemoEntry.jsx / authController.js's demoLogin. */}
+          <Link className="nav-link-demo" to="/demo">
+            View Demo
+          </Link>
           <span>{navPrompt}</span>
           <Link className="nav-link" to={navTo}>
             {navLabel}

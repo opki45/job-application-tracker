@@ -136,10 +136,19 @@ async function deleteApplication(userId, id) {
   return result.affectedRows > 0;
 }
 
+// Wipes every application belonging to one user. Currently only used to
+// reseed the shared demo account between visitors (see demoSeed.js) -- not
+// exposed on any route, since a real user deleting their whole history in
+// one shot isn't something the product offers.
+async function deleteAllForUser(userId) {
+  await pool.execute('DELETE FROM applications WHERE user_id = ?', [userId]);
+}
+
 module.exports = {
   createApplication,
   findApplications,
   findApplicationById,
   updateApplication,
   deleteApplication,
+  deleteAllForUser,
 };

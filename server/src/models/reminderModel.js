@@ -70,4 +70,16 @@ async function deleteReminder(userId, id) {
   return result.affectedRows > 0;
 }
 
-module.exports = { createReminder, findReminderById, findReminders, updateReminder, deleteReminder };
+// See applicationModel.deleteAllForUser -- same reasoning, same demo-only use.
+async function deleteAllForUser(userId) {
+  await pool.execute('DELETE FROM reminders WHERE user_id = ?', [userId]);
+}
+
+module.exports = {
+  createReminder,
+  findReminderById,
+  findReminders,
+  updateReminder,
+  deleteReminder,
+  deleteAllForUser,
+};

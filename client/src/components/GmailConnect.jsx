@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { useGmail } from '../GmailContext';
+import { useAuth } from '../AuthContext';
 
 // Small widget: shows whether Gmail is connected and lets the user
 // connect/disconnect. Connection status itself lives in GmailContext (not
@@ -8,6 +9,7 @@ import { useGmail } from '../GmailContext';
 // the review queue's empty-state copy, Settings -- shares one source of
 // truth instead of independently fetching and possibly disagreeing.
 function GmailConnect() {
+  const { user } = useAuth();
   const { connected, loading, setConnected, refresh } = useGmail();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -64,6 +66,20 @@ function GmailConnect() {
   }
 
   if (loading) return null;
+
+  // Blocked server-side too (integrationController.connect), not just here
+  // -- see that comment for why. This is purely so the button doesn't sit
+  // there looking clickable and then fail with no explanation.
+  if (user.is_demo) {
+    return (
+      <div className="gmail-connect">
+        <button className="btn-ghost" disabled title="Gmail sync is disabled on the shared demo account">
+          Connect Gmail
+        </button>
+        <span className="muted">(disabled in demo mode)</span>
+      </div>
+    );
+  }
 
   return (
     <div className="gmail-connect">

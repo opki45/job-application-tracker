@@ -26,4 +26,9 @@ async function filterUnprocessed(userId, gmailMessageIds) {
   return gmailMessageIds.filter((id) => !seen.has(id));
 }
 
-module.exports = { markProcessed, filterUnprocessed };
+// See applicationModel.deleteAllForUser -- same reasoning, same demo-only use.
+async function deleteAllForUser(userId) {
+  await pool.execute('DELETE FROM processed_emails WHERE user_id = ?', [userId]);
+}
+
+module.exports = { markProcessed, filterUnprocessed, deleteAllForUser };

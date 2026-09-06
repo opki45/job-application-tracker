@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { GmailProvider } from '../GmailContext';
 import Logo from './Logo';
@@ -21,6 +21,15 @@ function AppShell() {
   return (
     <GmailProvider>
       <div>
+        {/* Shared demo account -- see DemoEntry.jsx / authController.js's
+            demoLogin. Explains why data keeps resetting and Gmail connect
+            is disabled, rather than leaving either looking broken. */}
+        {user.is_demo && (
+          <div className="demo-banner">
+            You're viewing a shared demo account — data resets on every visit and Gmail sync is disabled.{' '}
+            <Link to="/register">Create your own free account</Link> to try it for real.
+          </div>
+        )}
         <header className="topbar">
           <Logo />
           <div className="topbar-right">

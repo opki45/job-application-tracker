@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import DemoEntry from './pages/DemoEntry';
 import Dashboard from './pages/Dashboard';
 import ApplicationsPage from './pages/ApplicationsPage';
 import CalendarPage from './pages/CalendarPage';
@@ -22,6 +23,9 @@ function App() {
       {/* Public pages */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      {/* No auth needed to reach this -- it logs the visitor into the
+          shared demo account itself. See DemoEntry.jsx. */}
+      <Route path="/demo" element={<DemoEntry />} />
 
       {/* Protected: ProtectedRoute sends you to /login if you're not logged
           in; AppShell renders the persistent topbar+sidebar shell around

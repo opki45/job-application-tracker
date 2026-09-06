@@ -4,6 +4,15 @@ const config = require('../config');
 const userModel = require('../models/userModel');
 const google = require('../integrations/googleClient');
 const { validateRegister } = require('../utils/validation');
+const demoSeed = require('../demoSeed');
+
+// The one place that decides what a "user" looks like once it leaves the
+// server. is_demo lets the client show a "you're viewing a demo" banner and
+// disable Gmail connect (see GmailConnect.jsx / integrationController.js)
+// without the frontend needing to know the demo account's email itself.
+function toPublicUser(user) {
+  return { id: user.id, email: user.email, is_demo: demoSeed.isDemoEmail(user.email) };
+}
 
 // bcrypt "cost factor". Higher = slower to hash = harder to brute-force, but
 // slower logins. 10 is the common default and a good balance.
@@ -53,7 +62,7 @@ async function register(req, res, next) {
     // 5. Create the user and respond with 201 Created. I return the user but
     //    NEVER the password hash.
     const user = await userModel.createUser({ email, passwordHash });
-    return res.status(201).json({ user: { id: user.id, email: user.email } });
+    return res.status(201).json({ user: toPublicUser(user) });
   } catch (err) {
     // Anything unexpected (e.g. a DB error) gets handed to my error handler.
     next(err);
@@ -85,7 +94,7 @@ async function login(req, res, next) {
 
     // Credentials good -> issue a token.
     const token = signToken(user);
-    return res.json({ user: { id: user.id, email: user.email }, token });
+    return res.json({ user: toPublicUser(user), token });
   } catch (err) {
     next(err);
   }
@@ -100,7 +109,7 @@ async function me(req, res, next) {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    return res.json({ user });
+    return res.json({ user: toPublicUser(user) });
   } catch (err) {
     next(err);
   }
@@ -250,9 +259,29 @@ async function googleExchange(req, res) {
       return res.status(401).json({ error: 'Invalid code' });
     }
     const token = signToken(user);
-    return res.json({ user: { id: user.id, email: user.email }, token });
+    return res.json({ user: toPublicUser(user), token });
   } catch {
     return res.status(401).json({ error: 'Invalid or expired code' });
+  }
+}
+
+// POST /api/auth/demo (public)
+// Logs the caller straight into the shared demo account -- no password, no
+// signup, no Google. Every call also wipes and reseeds that account's data
+// (see demoSeed.js) so it always shows the same curated state regardless of
+// what an earlier visitor changed. This is deliberately the ONLY way in:
+// there's no advertised password for the demo account, and even if someone
+// guessed the email, login() would reject it (password_hash is null, same
+// path as a Google-only account -- see login()'s comment above).
+async function demoLogin(req, res, next) {
+  try {
+    const userId = await demoSeed.findOrCreateDemoUser();
+    await demoSeed.resetDemoData(userId);
+    const user = await userModel.findUserById(userId);
+    const token = signToken(user);
+    return res.json({ user: toPublicUser(user), token });
+  } catch (err) {
+    next(err);
   }
 }
 
@@ -265,4 +294,5 @@ module.exports = {
   googleLogin,
   googleCallback,
   googleExchange,
+  demoLogin,
 };

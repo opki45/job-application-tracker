@@ -3,6 +3,7 @@ const config = require('../config');
 const google = require('../integrations/googleClient');
 const oauthAccountModel = require('../models/oauthAccountModel');
 const tokenCrypto = require('../utils/tokenCrypto');
+const demoSeed = require('../demoSeed');
 
 const PROVIDER = 'google';
 
@@ -22,6 +23,16 @@ function signState(userId) {
 // Hands back a Google consent URL for the client to redirect the browser to.
 async function connect(req, res, next) {
   try {
+    // Blocked specifically for the demo account -- not just hidden in the
+    // UI (see GmailConnect.jsx), enforced here too. This is the one real
+    // privacy risk in the whole demo-account design: if this succeeded, a
+    // visitor's REAL Gmail OAuth grant would land in a SHARED account other
+    // visitors can also reach. Everything else about the demo account is
+    // low-stakes (worst case, reset on the next visit) -- this specifically
+    // is not, so it gets a hard server-side check, not just a disabled button.
+    if (demoSeed.isDemoEmail(req.user.email)) {
+      return res.status(403).json({ error: 'Gmail connect is disabled on the shared demo account.' });
+    }
     const state = signState(req.user.id);
     const url = google.getAuthUrl(state);
     return res.json({ url });

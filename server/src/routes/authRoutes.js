@@ -12,6 +12,11 @@ router.post('/register', authController.register);
 // POST /login -> check credentials and hand back a JWT. (Public.)
 router.post('/login', authController.login);
 
+// POST /demo -> log straight into the shared, auto-reset demo account. No
+// credentials of any kind -- see authController.js's demoLogin comment for
+// why this is safe. (Public: the whole point is no account needed.)
+router.post('/demo', authController.demoLogin);
+
 // Sign-in with Google -- all public, same reasoning as the Gmail OAuth
 // routes: googleLogin/googleCallback are browser redirects with no
 // Authorization header of their own to check.
