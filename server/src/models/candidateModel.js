@@ -83,6 +83,11 @@ async function updateCandidateState(userId, id, state) {
   ]);
 }
 
+// See applicationModel.deleteAllForUser -- same reasoning, same demo-only use.
+async function deleteAllForUser(userId) {
+  await pool.execute('DELETE FROM candidates WHERE user_id = ?', [userId]);
+}
+
 module.exports = {
   createCandidate,
   findCandidateById,
@@ -90,4 +95,5 @@ module.exports = {
   findPendingCandidateById,
   updateCandidateState,
   mergeIntoPendingCandidate,
+  deleteAllForUser,
 };

@@ -387,6 +387,59 @@ button:disabled {
 .landing-nav-divider {
   border-top: 1px solid var(--border);
 }
+/* The "View Demo" pill in AuthLayout's nav -- deliberately styled like a
+   small CTA button rather than a plain text link, so it reads as its own
+   option rather than getting lost next to "Log in"/"Create account". */
+.nav-link-demo {
+  background: var(--brand-grad);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-decoration: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-sm);
+  margin-right: 0.4rem;
+  transition: filter 0.15s;
+}
+.nav-link-demo:hover {
+  filter: brightness(1.05);
+}
+
+/* /demo's brief loading/error state -- it redirects almost immediately on
+   success, so this is only ever visible for a moment (or on failure). */
+.demo-entry-status {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--muted);
+  background: var(--bg);
+}
+
+/* The persistent strip AppShell shows across every page while logged into
+   the shared demo account -- both so it's clear this isn't a real personal
+   account (data resets, Gmail is disabled), and as a CTA toward a real one. */
+.demo-banner {
+  background: var(--warning-tint);
+  border-bottom: 1px solid var(--warning-border);
+  color: var(--warning-text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.55rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  text-align: center;
+}
+.demo-banner a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .nav-link {
   color: var(--primary);
   font-weight: 700;

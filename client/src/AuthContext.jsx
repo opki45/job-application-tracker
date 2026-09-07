@@ -46,6 +46,15 @@ export function AuthProvider({ children }) {
     await login(email, password);
   }
 
+  // Logs straight into the shared demo account -- no credentials, see
+  // DemoEntry.jsx and authController.js's demoLogin. Every call also wipes
+  // and reseeds that account's data server-side, so this always lands on
+  // the same curated state regardless of what an earlier visitor changed.
+  async function loginAsDemo() {
+    const data = await api.post('/auth/demo');
+    persistSession(data);
+  }
+
   // The second half of "Continue with Google": the button itself is a plain
   // link straight to the backend (a full browser redirect to Google, not a
   // fetch -- see Login.jsx). By the time control comes back to React, the
@@ -65,7 +74,7 @@ export function AuthProvider({ children }) {
   }
 
   // Everything I want to expose to the rest of the app.
-  const value = { user, loading, login, register, logout, loginWithGoogleCode };
+  const value = { user, loading, login, register, logout, loginWithGoogleCode, loginAsDemo };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
